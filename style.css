@@ -143,6 +143,26 @@ h1, h2, .brand, .fab, .nav-btn span:last-child, .pill-btn, .seg-btn, .link-btn {
   .view { animation: none; }
 }
 
+/* ---- example banner ---- */
+.example-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-radius: 100px;
+  padding: 8px 8px 8px 16px;
+  font-size: 12.5px;
+  margin-bottom: 14px;
+}
+.example-banner .link-btn {
+  background: var(--surface);
+  border-radius: 100px;
+  padding: 5px 12px;
+  white-space: nowrap;
+}
+
 /* ---- summary ---- */
 .summary-row {
   display: grid;

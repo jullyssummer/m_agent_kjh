@@ -34,6 +34,88 @@ function defaultState() {
   };
 }
 
+function daysAgoISO(n) {
+  const dt = new Date();
+  dt.setDate(dt.getDate() - n);
+  const tz = dt.getTimezoneOffset() * 60000;
+  return new Date(dt - tz).toISOString().slice(0, 10);
+}
+function thisMonthDayISO(n) {
+  const clamped = Math.max(0, Math.min(n, new Date().getDate() - 1));
+  return daysAgoISO(clamped);
+}
+function firstOfNextMonthISO() {
+  const now = new Date();
+  const y = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+  const m = now.getMonth() === 11 ? 0 : now.getMonth() + 1;
+  return `${y}-${String(m + 1).padStart(2, "0")}-01`;
+}
+
+function seedExampleData(base) {
+  const accId = base.accounts[0].id;
+  const catId = (name, type) => base.categories.find((c) => c.name === name && c.type === type).id;
+
+  base.categories.find((c) => c.name === "식비" && c.type === "expense").budget = 90000;
+  base.categories.find((c) => c.name === "교통" && c.type === "expense").budget = 5000;
+  base.categories.find((c) => c.name === "쇼핑" && c.type === "expense").budget = 100000;
+  base.categories.find((c) => c.name === "문화/여가" && c.type === "expense").budget = 30000;
+
+  const mk = (date, type, catName, amount, memo, tags = []) => ({
+    id: uid(), date, type, accountId: accId,
+    categoryId: catId(catName, type), amount, memo, tags, isExample: true,
+  });
+
+  base.transactions = [
+    mk(thisMonthDayISO(0), "income", "급여", 2800000, "이번 달 급여"),
+    mk(thisMonthDayISO(1), "expense", "식비", 8500, "편의점 도시락"),
+    mk(thisMonthDayISO(1), "expense", "교통", 1500, "버스"),
+    mk(thisMonthDayISO(2), "expense", "쇼핑", 45000, "운동화", ["쇼핑몰"]),
+    mk(thisMonthDayISO(3), "expense", "식비", 32000, "친구랑 저녁", ["모임"]),
+    mk(thisMonthDayISO(4), "expense", "문화/여가", 15000, "영화"),
+    mk(thisMonthDayISO(5), "expense", "생활", 22000, "생필품"),
+    mk(thisMonthDayISO(5), "expense", "식비", 41000, "장보기"),
+    mk(thisMonthDayISO(6), "expense", "교통", 4200, "지하철"),
+    mk(thisMonthDayISO(6), "income", "용돈", 50000, "용돈"),
+    mk(daysAgoISO(30), "expense", "식비", 12000, "저녁"),
+    mk(daysAgoISO(33), "expense", "쇼핑", 68000, "생일 선물", ["선물"]),
+    mk(daysAgoISO(38), "income", "급여", 2800000, "지난달 급여"),
+    mk(daysAgoISO(45), "expense", "문화/여가", 25000, "공연 티켓"),
+    mk(daysAgoISO(50), "expense", "교통", 30000, "택시"),
+    mk(daysAgoISO(58), "expense", "식비", 9500, "저녁"),
+    mk(daysAgoISO(65), "income", "용돈", 80000, "용돈"),
+    mk(daysAgoISO(75), "expense", "생활", 18000, "생필품"),
+  ];
+
+  base.recurringRules = [{
+    id: uid(), type: "expense", accountId: accId,
+    categoryId: catId("문화/여가", "expense"),
+    amount: 13500, memo: "넷플릭스", dayOfMonth: 1,
+    nextRunDate: firstOfNextMonthISO(),
+    active: true, isExample: true,
+  }];
+
+  base.savingsGoals = [{
+    id: uid(), name: "제주도 여행", targetAmount: 1000000, currentAmount: 350000,
+    targetDate: null, isExample: true,
+  }];
+
+  return base;
+}
+
+function hasExampleData() {
+  return state.transactions.some((t) => t.isExample)
+    || state.recurringRules.some((r) => r.isExample)
+    || state.savingsGoals.some((g) => g.isExample);
+}
+
+function clearExampleData() {
+  state.transactions = state.transactions.filter((t) => !t.isExample);
+  state.recurringRules = state.recurringRules.filter((r) => !r.isExample);
+  state.savingsGoals = state.savingsGoals.filter((g) => !g.isExample);
+  saveState();
+  renderActiveView();
+}
+
 function migrateFromLegacy(base) {
   const raw = localStorage.getItem(LEGACY_KEY);
   if (!raw) return base;
@@ -67,7 +149,10 @@ function loadState() {
       if (parsed && parsed.accounts && parsed.categories) return parsed;
     } catch { /* fall through */ }
   }
-  return migrateFromLegacy(defaultState());
+  const hadLegacyData = !!localStorage.getItem(LEGACY_KEY);
+  const base = migrateFromLegacy(defaultState());
+  if (!hadLegacyData) seedExampleData(base);
+  return base;
 }
 
 const state = loadState();
@@ -179,6 +264,8 @@ function sumByType(list, type) {
 /* ---------- render: home ---------- */
 
 function renderHome() {
+  document.getElementById("exampleBanner").hidden = !hasExampleData();
+
   document.getElementById("currentMonth").textContent = formatMonth(state.cursor);
   const monthTx = transactionsInMonth(state.cursor);
   const income = sumByType(monthTx, "income");
@@ -734,6 +821,10 @@ document.getElementById("nextMonth").addEventListener("click", () => {
 });
 
 document.getElementById("fabAdd").addEventListener("click", () => openTxModal(null));
+
+document.getElementById("clearExampleBtn").addEventListener("click", () => {
+  if (confirm("예시 데이터를 모두 지울까요?")) clearExampleData();
+});
 
 document.getElementById("recentList").addEventListener("click", handleTxListClick);
 document.getElementById("entryList").addEventListener("click", handleTxListClick);
