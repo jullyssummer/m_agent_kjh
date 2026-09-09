@@ -2,60 +2,180 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>간단 가계부</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>우리집 가계부</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="app">
-    <header>
-      <h1>간단 가계부</h1>
+    <header class="topbar">
+      <div class="brand">✨ 우리집 가계부</div>
       <div class="month-nav">
-        <button id="prevMonth" aria-label="이전 달">‹</button>
+        <button id="prevMonth" class="ghost-btn" aria-label="이전 달">‹</button>
         <span id="currentMonth"></span>
-        <button id="nextMonth" aria-label="다음 달">›</button>
+        <button id="nextMonth" class="ghost-btn" aria-label="다음 달">›</button>
       </div>
     </header>
 
-    <section class="summary">
-      <div class="summary-card income">
-        <span class="label">수입</span>
-        <span class="value" id="totalIncome">0원</span>
-      </div>
-      <div class="summary-card expense">
-        <span class="label">지출</span>
-        <span class="value" id="totalExpense">0원</span>
-      </div>
-      <div class="summary-card balance">
-        <span class="label">잔액</span>
-        <span class="value" id="totalBalance">0원</span>
-      </div>
-    </section>
+    <main>
+      <section id="view-home" class="view">
+        <div class="summary-row">
+          <div class="summary-card income">
+            <span class="s-icon">🌟</span>
+            <span class="s-label">수입</span>
+            <span class="s-value" id="homeIncome">0원</span>
+          </div>
+          <div class="summary-card expense">
+            <span class="s-icon">🛍️</span>
+            <span class="s-label">지출</span>
+            <span class="s-value" id="homeExpense">0원</span>
+          </div>
+          <div class="summary-card balance">
+            <span class="s-icon">🐷</span>
+            <span class="s-label">잔액</span>
+            <span class="s-value" id="homeBalance">0원</span>
+          </div>
+        </div>
 
-    <form id="entryForm" class="entry-form">
-      <div class="field-row">
-        <input type="date" id="date" required>
-        <select id="type">
-          <option value="expense">지출</option>
-          <option value="income">수입</option>
-        </select>
-      </div>
-      <div class="field-row">
-        <select id="category"></select>
-        <input type="text" id="memo" placeholder="메모 (선택)">
-      </div>
-      <div class="field-row">
-        <input type="number" id="amount" placeholder="금액" min="0" step="1" required>
-        <button type="submit">추가</button>
-      </div>
-    </form>
+        <div class="panel">
+          <div class="panel-head">
+            <h2>예산 현황</h2>
+          </div>
+          <div id="budgetList" class="budget-list"></div>
+        </div>
 
-    <section class="list-section">
-      <ul id="entryList" class="entry-list"></ul>
-      <p id="emptyMessage" class="empty-message">이번 달 내역이 없습니다.</p>
-    </section>
+        <div class="panel" id="goalPanel">
+          <div class="panel-head">
+            <h2>저축 목표</h2>
+          </div>
+          <div id="goalPreview" class="goal-preview"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>최근 내역</h2>
+            <button class="link-btn" data-nav="list">더보기 ›</button>
+          </div>
+          <ul id="recentList" class="entry-list"></ul>
+          <p id="recentEmpty" class="empty-message" hidden>아직 내역이 없어요. + 버튼으로 첫 내역을 남겨보세요!</p>
+        </div>
+      </section>
+
+      <section id="view-list" class="view">
+        <div class="filter-panel">
+          <input type="text" id="searchInput" class="cute-input" placeholder="🔍 메모, 태그로 검색">
+          <div class="filter-row">
+            <select id="filterAccount" class="cute-select"></select>
+            <select id="filterCategory" class="cute-select"></select>
+            <select id="filterType" class="cute-select">
+              <option value="all">전체</option>
+              <option value="income">수입</option>
+              <option value="expense">지출</option>
+              <option value="transfer">이체</option>
+            </select>
+          </div>
+          <label class="check-row">
+            <input type="checkbox" id="filterAllTime">
+            <span>전체 기간에서 검색</span>
+          </label>
+        </div>
+
+        <ul id="entryList" class="entry-list"></ul>
+        <p id="listEmpty" class="empty-message" hidden>조건에 맞는 내역이 없어요.</p>
+      </section>
+
+      <section id="view-stats" class="view">
+        <div class="panel">
+          <div class="panel-head"><h2>카테고리별 지출</h2></div>
+          <div class="chart-wrap"><canvas id="categoryChart" height="220"></canvas></div>
+          <p id="categoryChartEmpty" class="empty-message" hidden>이번 달 지출 내역이 없어요.</p>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>최근 6개월 추이</h2></div>
+          <div class="chart-wrap"><canvas id="trendChart" height="220"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>전월 비교</h2></div>
+          <div id="compareCard" class="compare-card"></div>
+        </div>
+      </section>
+
+      <section id="view-settings" class="view">
+        <div class="panel">
+          <div class="panel-head"><h2>🌈 테마</h2></div>
+          <div id="themeSwitch" class="segmented">
+            <button data-theme="system" class="seg-btn">시스템</button>
+            <button data-theme="light" class="seg-btn">라이트</button>
+            <button data-theme="dark" class="seg-btn">다크</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>🏦 계좌</h2>
+            <button class="link-btn" id="addAccountBtn">+ 추가</button>
+          </div>
+          <ul id="accountList" class="manage-list"></ul>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>🎨 카테고리</h2>
+            <button class="link-btn" id="addCategoryBtn">+ 추가</button>
+          </div>
+          <ul id="categoryManageList" class="manage-list"></ul>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>🔁 반복 거래</h2>
+            <button class="link-btn" id="addRecurringBtn">+ 추가</button>
+          </div>
+          <ul id="recurringList" class="manage-list"></ul>
+          <p id="recurringEmpty" class="empty-message" hidden>등록된 반복 거래가 없어요.</p>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>🎯 저축 목표</h2>
+            <button class="link-btn" id="addGoalBtn">+ 추가</button>
+          </div>
+          <ul id="goalManageList" class="manage-list"></ul>
+          <p id="goalEmpty" class="empty-message" hidden>목표를 세우고 저축을 시작해보세요!</p>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>💾 백업</h2></div>
+          <div class="backup-row">
+            <button id="exportBtn" class="pill-btn">내보내기</button>
+            <button id="importBtn" class="pill-btn ghost">가져오기</button>
+            <input type="file" id="importFile" accept="application/json" hidden>
+          </div>
+          <p class="hint">전체 데이터를 파일로 저장하거나 불러올 수 있어요.</p>
+        </div>
+      </section>
+    </main>
+
+    <button id="fabAdd" class="fab" aria-label="내역 추가">+</button>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-view="home"><span class="n-icon">🏠</span><span>홈</span></button>
+      <button class="nav-btn" data-view="list"><span class="n-icon">📝</span><span>내역</span></button>
+      <button class="nav-btn" data-view="stats"><span class="n-icon">📊</span><span>통계</span></button>
+      <button class="nav-btn" data-view="settings"><span class="n-icon">⚙️</span><span>설정</span></button>
+    </nav>
   </div>
 
+  <div id="modalBackdrop" class="modal-backdrop" hidden>
+    <div class="modal-sheet" id="modalSheet"></div>
+  </div>
+
+  <datalist id="tagSuggestions"></datalist>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
