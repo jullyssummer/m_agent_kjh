@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>B tv+ 성과 분석 대시보드</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <strong>B tv+ 성과 분석 대시보드</strong>
+      <span class="meta">데이터 기준일 <b id="asOf">2026-09-10</b> · 화면의 모든 수치는 더미 데이터</span>
+    </div>
+    <nav class="tabs" id="viewTabs">
+      <button class="tab active" data-view="perf">현재 실적 파악</button>
+      <button class="tab" data-view="compare">실적 비교 분석</button>
+      <button class="tab" data-view="forecast">마감 예측 <span class="lock-badge">준비중</span></button>
+    </nav>
+    <div class="actions">
+      <label class="btn" for="csvInput">CSV 업로드</label>
+      <input type="file" id="csvInput" accept=".csv,text/csv" hidden>
+      <button class="btn ghost" id="sampleBtn">샘플 양식</button>
+      <button class="btn ghost" id="chatToggle">AI 채팅</button>
+    </div>
+  </header>
+
+  <div id="uploadNote" class="upload-note" hidden></div>
+
+  <main class="layout">
+    <div class="views">
+      <!-- 1. 현재 실적 파악 -->
+      <section class="view active" id="view-perf">
+        <div class="toolbar">
+          <label>조회 월
+            <select id="perfMonth"></select>
+          </label>
+          <label>월 목표 (유료)
+            <input type="number" id="targetPaid" step="100">
+          </label>
+          <label>월 목표 (쿠폰)
+            <input type="number" id="targetCoupon" step="100">
+          </label>
+          <button class="btn small" id="saveTarget">목표 저장</button>
+          <label class="checkbox"><input type="checkbox" id="showLabels" checked> 데이터 레이블</label>
+        </div>
+
+        <div class="kpi-grid" id="perfKpis"></div>
+        <div id="perfSignals"></div>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>AI 주간 실적 요약</h2>
+            <button class="btn small ghost" id="saveSummary">인사이트로 저장</button>
+          </header>
+          <div id="weeklySummary" class="summary"></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head"><h2>담당자 코멘트</h2></header>
+          <form class="comment-form" id="commentForm">
+            <input type="text" id="commentText" placeholder="이번 주 실적에 대한 코멘트를 남겨주세요" maxlength="300">
+            <button class="btn small" type="submit">등록</button>
+          </form>
+          <ul class="comment-list" id="commentList"></ul>
+        </section>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>월간 그래프 · 일자별 유료 신규 / 쿠폰 가입자</h2>
+            <span class="hint">이벤트 진행일은 상단에 이벤트명 · 오퍼 표기</span>
+          </header>
+          <div class="chart-wrap tall"><canvas id="monthChart"></canvas></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head"><h2>월간 이벤트 계획</h2></header>
+          <div class="table-wrap"><table id="eventPlanTable"></table></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>캠페인별 실적</h2>
+            <span class="hint">가입자 수는 이벤트 기여분(증분) 기준</span>
+          </header>
+          <div class="table-wrap"><table id="campaignTable"></table></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>Seg.별 실적</h2>
+            <div class="inline-filters">
+              <label>UI 구분
+                <select id="segUi"></select>
+              </label>
+              <label>지표
+                <select id="segMetric"></select>
+              </label>
+            </div>
+          </header>
+          <div class="period-picker">
+            <span class="hint">비교 기간</span>
+            <div class="chips" id="segPeriods"></div>
+          </div>
+          <div class="table-wrap"><table id="segTable"></table></div>
+          <p class="hint">당월은 전일 기준 누적이라 기간 길이가 달라, 사용·가입률의 증감률은 경과일 기준으로 환산해 비교합니다. 증감 막대 길이는 SEG 중 최대 증감폭 대비 비율입니다.</p>
+        </section>
+      </section>
+
+      <!-- 2. 실적 비교 분석 -->
+      <section class="view" id="view-compare">
+        <section class="card">
+          <header class="card-head">
+            <h2>전체 이벤트 실적</h2>
+            <span class="hint" id="allCount"></span>
+            <button class="btn small ghost" id="allReset">당월로 초기화</button>
+          </header>
+          <div class="filter-bar">
+            <label>진행 년도<select id="f-year"><option value="">전체</option></select></label>
+            <label>진행 월<select id="f-month"><option value="">전체</option></select></label>
+            <label>이벤트 종류<select id="f-type"><option value="">전체</option></select></label>
+            <label>할인율<select id="f-discount"><option value="">전체</option></select></label>
+            <label>이벤트명<select id="f-name"><option value="">전체</option></select></label>
+            <label>경품 방식<select id="f-method"><option value="">전체</option></select></label>
+            <label>경품 유형<select id="f-form"><option value="">전체</option></select></label>
+            <label>경품 종류<select id="f-kind"><option value="">전체</option></select></label>
+          </div>
+          <div class="ai-comment" id="allComment"></div>
+          <div class="table-wrap scroll-y"><table id="allEventsTable"></table></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>현재 ↔ 과거 이벤트 비교</h2>
+            <div class="inline-filters">
+              <label>기준 이벤트
+                <select id="baseEvent"></select>
+              </label>
+              <label>비교 대상
+                <select id="compareCount">
+                  <option value="3">유사 이벤트 3건</option>
+                  <option value="5">유사 이벤트 5건</option>
+                  <option value="all">전체 평균</option>
+                </select>
+              </label>
+            </div>
+          </header>
+          <div id="compareCards" class="kpi-grid"></div>
+          <p class="hint" id="compareHint"></p>
+          <div class="ai-comment" id="compareComment"></div>
+          <div class="chart-wrap"><canvas id="compareChart"></canvas></div>
+          <div class="table-wrap"><table id="compareTable"></table></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>교차분석</h2>
+            <div class="inline-filters">
+              <label>행 기준
+                <select id="pivotRow"></select>
+              </label>
+              <label>열 기준
+                <select id="pivotCol"></select>
+              </label>
+              <label>지표
+                <select id="pivotMetric"></select>
+              </label>
+            </div>
+          </header>
+          <div class="ai-comment" id="pivotComment"></div>
+          <div class="table-wrap"><table id="pivotTable"></table></div>
+          <p class="hint" id="pivotHint"></p>
+        </section>
+      </section>
+
+      <!-- 3. 마감 예측 (미완성 · 잠금) -->
+      <section class="view" id="view-forecast">
+        <section class="card lock-card" id="forecastLock">
+          <h2>마감 예측 · 준비중</h2>
+          <p>아직 검증 중인 기능이라 잠가 두었습니다. 담당자 코드를 입력하면 열립니다.</p>
+          <form id="forecastUnlock">
+            <input type="password" id="forecastCode" placeholder="담당자 코드" autocomplete="off">
+            <button class="btn small" type="submit">열기</button>
+            <span class="lock-error" id="forecastError" hidden>코드가 올바르지 않습니다.</span>
+          </form>
+        </section>
+
+        <div id="forecastBody" hidden>
+        <div class="signal warn">⚠ 검증 중인 기능입니다. 수치는 참고용이며 외부 공유 전 반드시 확인이 필요합니다.
+          <button class="btn small ghost" id="forecastRelock">다시 잠그기</button>
+        </div>
+        <div class="toolbar">
+          <label>예측 대상 월
+            <select id="forecastMonth"></select>
+          </label>
+          <label>트렌드 구간
+            <select id="trendWindow">
+              <option value="7">최근 7일</option>
+              <option value="14" selected>최근 14일</option>
+              <option value="28">최근 28일</option>
+            </select>
+          </label>
+          <button class="btn small ghost" id="resetWeights">가중치 추천값으로 초기화</button>
+        </div>
+
+        <div class="kpi-grid" id="forecastKpis"></div>
+        <div id="forecastSignals"></div>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>실적 추이 및 마감 예측</h2>
+            <span class="hint">실선 = 실적, 점선 = 예측</span>
+          </header>
+          <div class="chart-wrap tall"><canvas id="forecastChart"></canvas></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>예정 이벤트 가중치</h2>
+            <span class="hint">과거 유사 이벤트 실적으로 추천값을 계산합니다. 직접 조정하면 예측에 즉시 반영됩니다.</span>
+          </header>
+          <div class="table-wrap"><table id="weightTable"></table></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head"><h2>시나리오별 마감 전망</h2></header>
+          <div class="table-wrap"><table id="scenarioTable"></table></div>
+        </section>
+        </div>
+      </section>
+    </div>
+
+    <!-- AI 채팅 + 인사이트 축적소 -->
+    <aside class="chat-dock" id="chatDock">
+      <header class="chat-head">
+        <div>
+          <strong>AI 어시스턴트</strong>
+          <span class="chat-ctx" id="chatContext">현재 실적 파악</span>
+        </div>
+        <button class="icon-btn" id="chatClose" title="닫기">×</button>
+      </header>
+      <div class="chat-tabs">
+        <button class="chat-tab active" data-pane="chat">채팅</button>
+        <button class="chat-tab" data-pane="insights">인사이트 축적소 <span id="insightCount">0</span></button>
+      </div>
+
+      <div class="chat-pane active" id="pane-chat">
+        <div class="chat-log" id="chatLog"></div>
+        <div class="chat-suggest" id="chatSuggest"></div>
+        <form class="chat-form" id="chatForm">
+          <input type="text" id="chatInput" placeholder="예: 이번 달 어때? / 다음 이벤트 뭐로 할까?" autocomplete="off">
+          <button class="btn small" type="submit">보내기</button>
+        </form>
+        <p class="chat-note">로컬 규칙 기반 프로토타입 — 실제 데이터를 계산해 답변합니다 (외부 LLM 미연동)</p>
+      </div>
+
+      <div class="chat-pane" id="pane-insights">
+        <form class="chat-form" id="insightForm">
+          <input type="text" id="insightInput" placeholder="직접 인사이트 추가" autocomplete="off">
+          <button class="btn small" type="submit">추가</button>
+        </form>
+        <div class="insight-list" id="insightList"></div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/perf.js"></script>
+  <script src="js/compare.js"></script>
+  <script src="js/forecast.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
