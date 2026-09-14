@@ -521,7 +521,7 @@
       receiveRate: p.receivers != null && p.winners ? p.receivers / p.winners : null,
       budgetPerHead: p.actualBudget && signups ? p.actualBudget / signups : null,
       priceBand: p.unitPrice ? `${p.unitPrice / 10000}만원` : '없음',
-      rankLabel: `${p.rank}등`,
+      rankLabel: prizes.length > 1 ? `${p.rank}등` : '단일',
     }));
     return {
       ...ev,

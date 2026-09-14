@@ -32,6 +32,7 @@
     daily: (r) => r.date,
     events: (r) => r.id,
     seg: (r) => `${r.month}|${r.ui}|${r.segment}`,
+    prizes: (r) => `${r.event}|${r.rank}`,
   };
 
   global.Store = {
@@ -112,6 +113,10 @@
       ].slice(0, 20);
       save();
       return { added, updated, total: state.uploads[kind].length };
+    },
+    removeUploadRow(kind, match) {
+      state.uploads[kind] = (state.uploads[kind] || []).filter((r) => !match(r));
+      save();
     },
     uploadsOf(kind) {
       return state.uploads[kind] || [];

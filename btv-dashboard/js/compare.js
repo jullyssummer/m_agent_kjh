@@ -151,7 +151,14 @@
     { g: 0, label: '경품 방식', left: true, get: (e) => e.prizeMethod || '-', raw: (e) => e.prizeMethod },
     { g: 0, label: '경품 유형', left: true, get: (e) => e.prizeForm || '-', raw: (e) => e.prizeForm },
     { g: 0, label: '경품 종류', left: true, get: (e) => e.prizeKind, raw: (e) => e.prizeKind },
-    { g: 0, label: '이벤트명', left: true, get: (e) => e.name, raw: (e) => e.name },
+    {
+      g: 0,
+      label: '이벤트명',
+      left: true,
+      // 실데이터일 때만 수정 버튼을 띄운다 (더미를 고치면 실데이터 모드로 넘어가 혼란스럽다)
+      get: (e) => `${e.name}${Store.isRealData ? ` <button type="button" class="row-edit" data-edit="${e.id}" title="수정">✎</button>` : ''}`,
+      raw: (e) => e.name,
+    },
     { g: 1, label: '진행 월', get: (e) => `${Number(e.startDate.slice(5, 7))}월`, raw: (e) => e.startDate },
     { g: 1, label: '일시', left: true, get: (e) => `${fmt.date(e.startDate)} ~ ${fmt.date(e.endDate)}`, raw: (e) => e.startDate },
     { g: 1, label: '전체 일수', get: (e) => e.totalDays, raw: (e) => e.totalDays },
@@ -1169,6 +1176,11 @@
 
     ALL_FILTERS.forEach((f) => el(f.id).addEventListener('change', renderAllEvents));
     el('allEventsTable').addEventListener('click', (e) => {
+      const editId = e.target.dataset.edit;
+      if (editId) {
+        EventForm.open(editId);
+        return;
+      }
       const index = e.target.dataset.sort;
       if (index == null) return;
       const next = Number(index);

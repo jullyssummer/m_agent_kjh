@@ -1,4 +1,4 @@
-(function () {
+(function (global) {
   'use strict';
 
   const el = (id) => document.getElementById(id);
@@ -166,7 +166,7 @@
   function groupPeriods(list) {
     const byKey = new Map();
     list.forEach((row) => {
-      const key = row.id.startsWith('UP-') ? row.name : row.id;
+      const key = row.id;
       const prev = byKey.get(key);
       if (!prev) {
         byKey.set(key, { ...row, periods: [{ startDate: row.startDate, endDate: row.endDate }] });
@@ -205,7 +205,7 @@
         const restUnits = restDays * 1.25;
         const share = restUnits + weekdayDays;
         return {
-          id: val(r, EVENT_ALIAS.id) || `UP-${startDate.replace(/-/g, '')}-${i}`,
+          id: val(r, EVENT_ALIAS.id) || `UP-${val(r, EVENT_ALIAS.name)}`,
           name: val(r, EVENT_ALIAS.name) || `업로드 이벤트 ${i + 1}`,
           type: val(r, EVENT_ALIAS.type) || '할인',
           discountRate: toNum(val(r, EVENT_ALIAS.discountRate)) || 0,
@@ -235,6 +235,95 @@
       })
       .filter(Boolean)
     );
+  }
+
+  const csvCell = (v) => {
+    const s = v == null ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csvOf = (header, rows) => [header.join(','), ...rows.map((r) => r.map(csvCell).join(','))].join('\n');
+
+  function exportAll() {
+    const stamp = BTV.LAST_DATA_DAY.replace(/-/g, '');
+    const files = [];
+
+    const daily = Store.uploadsOf('daily').slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+    if (daily.length) {
+      files.push([
+        `btv_01_일자별실적_${stamp}.csv`,
+        csvOf(['일자', '유료신규', '쿠폰가입'], daily.map((r) => [r.date, r.paid, r.coupon])),
+      ]);
+    }
+
+    const events = Store.uploadsOf('events').slice().sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
+    if (events.length) {
+      // 구간은 행으로 풀되 실적은 첫 행에만 둔다. 다시 올려도 합산이 두 번 더해지지 않는다.
+      const rows = events.flatMap((e) =>
+        (e.periods && e.periods.length ? e.periods : [{ startDate: e.startDate, endDate: e.endDate }]).map((p, i) => [
+          e.name,
+          e.purpose,
+          e.type,
+          e.discountRate,
+          e.couponPolicy,
+          e.prizeMethod,
+          e.prizeForm,
+          e.prizeKind,
+          e.prizeUnitPrice,
+          p.startDate,
+          p.endDate,
+          i === 0 ? e.pool : '',
+          i === 0 ? e.paidSignups : '',
+          i === 0 ? e.couponSignups : '',
+          i === 0 ? e.entrants : '',
+          e.winnerPick,
+        ])
+      );
+      files.push([
+        `btv_02_캠페인_${stamp}.csv`,
+        csvOf(
+          ['이벤트명', '구분', '이벤트 종류', '할인율', '쿠폰 정책명', '경품 방식', '경품 유형', '경품 종류', '경품 단가', '시작일', '종료일', '모수', '유료 가입자 수', '쿠폰 가입자 수', '응모자 수', '당첨자 선정 방식'],
+          rows
+        ),
+      ]);
+    }
+
+    const seg = Store.uploadsOf('seg').slice().sort((a, b) => (a.month < b.month ? -1 : 1));
+    if (seg.length) {
+      files.push([
+        `btv_03_Seg별실적_${stamp}.csv`,
+        csvOf(['월', 'UI구분', 'SEG', '할당', '사용'], seg.map((r) => [r.month, r.ui, r.segment, r.allocated, r.used])),
+      ]);
+    }
+
+    const prizes = Store.uploadsOf('prizes');
+    if (prizes.length) {
+      const nameOf = new Map(Store.uploadsOf('events').map((e) => [e.id, e.name]));
+      files.push([
+        `btv_04_경품_${stamp}.csv`,
+        csvOf(
+          ['이벤트명', '등급', '경품 종류', '경품 유형', '경품 단가', '경품 수량', '당첨자 수', '실수령자 수', '경품 구매비', '실예산'],
+          prizes.map((r) => [
+            nameOf.get(r.event) || r.event,
+            r.rank,
+            r.kind,
+            r.form,
+            r.unitPrice,
+            r.count,
+            r.winners,
+            r.receivers,
+            r.purchaseCost,
+            r.actualBudget,
+          ])
+        ),
+      ]);
+    }
+
+    if (!files.length) {
+      note('⚠ 내보낼 데이터가 없습니다. CSV를 올리거나 이벤트를 직접 입력해주세요.');
+      return;
+    }
+    files.forEach(([name, content], i) => setTimeout(() => download(name, content), i * 250));
+    note(`✔ ${files.length}개 파일을 내려받습니다 — ${files.map(([n]) => n).join(', ')}`);
   }
 
   function note(html) {
@@ -279,6 +368,29 @@
     return true;
   }
 
+  // 직접 입력분도 CSV와 같은 저장소에 넣어 함께 누적된다
+  function saveManualEvent(row) {
+    const { prizes, ...event } = row;
+    Store.mergeUpload('events', [event], '직접 입력');
+    // 등급을 지운 채 저장하면 옛 등급이 남지 않도록 이 이벤트의 경품은 통째로 교체한다
+    Store.removeUploadRow('prizes', (r) => r.event === event.id);
+    if (prizes && prizes.length) {
+      Store.mergeUpload('prizes', prizes.map((p) => ({ ...p, event: event.id })), '직접 입력');
+    }
+    applyStored();
+    syncMonthOptions();
+    renderAll();
+    note(`✔ ${event.name} 저장 완료 · <a href="#" id="showUploadLog">업로드 이력</a>`);
+  }
+
+  function removeManualEvent(id) {
+    Store.removeUploadRow('events', (r) => r.id === id);
+    Store.removeUploadRow('prizes', (r) => r.event === id);
+    applyStored();
+    renderAll();
+    note('✔ 이벤트를 삭제했습니다.');
+  }
+
   function applyUpload(kind, rows, fileName) {
     const result = Store.mergeUpload(kind, rows, fileName);
     applyStored();
@@ -309,6 +421,10 @@
       if (kind !== 'daily' && !Store.isRealData && !Store.uploadsOf('daily').length) {
         note('⚠ 일자별 실적 CSV를 먼저 올려주세요. 일자별 데이터가 다른 화면의 기준이 됩니다.');
         return;
+      }
+      if (kind === 'prizes') {
+        const touched = new Set(built.map((r) => r.event));
+        Store.removeUploadRow('prizes', (r) => touched.has(r.event));
       }
       const result = applyUpload(kind, built, file.name);
       note(
@@ -369,6 +485,7 @@
     el('asOf').textContent = BTV.LAST_DATA_DAY;
     Perf.init();
     Compare.init();
+    EventForm.init();
 
     if (usingReal) {
       note(
@@ -393,6 +510,7 @@
       e.target.value = '';
     });
 
+    el('exportBtn').addEventListener('click', exportAll);
     el('sampleBtn').addEventListener('click', () => {
       note(
         '같은 컬럼명으로 채워 올리면 됩니다. 파일은 순서대로 올려주세요 — ①이 다른 화면의 기준이 됩니다.<br>' +
@@ -433,5 +551,7 @@
 
   }
 
+  global.App = { saveManualEvent, removeManualEvent };
+
   document.addEventListener('DOMContentLoaded', boot);
-})();
+})(window);
