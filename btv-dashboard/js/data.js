@@ -734,6 +734,11 @@
     const byKey = new Map(state.segMonthly.map((r) => [key(r), r]));
     rows.forEach((r) => byKey.set(key(r), r));
     state.segMonthly = Array.from(byKey.values());
+    // 일자별 실적이 없는 달이 Seg에만 있어도 비교 기간에서 고를 수 있게 한다
+    state.segMonthly.forEach((r) => {
+      if (!months.includes(r.month)) months.push(r.month);
+    });
+    months.sort();
   }
 
   const fmt = {
