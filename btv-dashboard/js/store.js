@@ -35,9 +35,23 @@
     onChange(fn) {
       listeners.push(fn);
     },
-    addComment(month, text, author) {
-      state.comments.unshift({ id: uid(), month, text, author: author || '담당자', at: now() });
+    addComment(month, text, kind, author) {
+      const at = new Date();
+      // 조회 중인 달과 작성한 달이 같을 때만 주차를 붙인다 (지난 달 소급 작성 시 오해 방지)
+      const sameMonth = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}` === month;
+      state.comments.unshift({
+        id: uid(),
+        month,
+        text,
+        kind: kind || 'weekly',
+        week: sameMonth ? Math.ceil(at.getDate() / 7) : null,
+        author: author || '담당자',
+        at: at.toISOString(),
+      });
       save();
+    },
+    closingComments(excludeMonth) {
+      return state.comments.filter((c) => c.kind === 'closing' && c.month !== excludeMonth);
     },
     removeComment(id) {
       state.comments = state.comments.filter((c) => c.id !== id);

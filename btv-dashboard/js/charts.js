@@ -59,6 +59,30 @@
     },
   };
 
+  // 평일 / 주말 / 공휴일 구분 음영. 이벤트 리본보다 먼저 깔아 색이 서로 묻히지 않게 한다.
+  const restDays = {
+    id: 'restDays',
+    beforeDatasetsDraw(chart) {
+      const types = chart.$dayTypes;
+      if (!types || !types.length) return;
+      const { ctx, chartArea, scales } = chart;
+      const half = (scales.x.getPixelForValue(1) - scales.x.getPixelForValue(0)) / 2 || 6;
+      ctx.save();
+      types.forEach((type, i) => {
+        if (type === 'weekday') return;
+        const x = scales.x.getPixelForValue(i);
+        ctx.fillStyle = type === 'holiday' ? 'rgba(217,79,61,.09)' : 'rgba(20,32,60,.055)';
+        ctx.fillRect(
+          Math.max(chartArea.left, x - half),
+          chartArea.top,
+          Math.min(chartArea.right, x + half) - Math.max(chartArea.left, x - half),
+          chartArea.bottom - chartArea.top
+        );
+      });
+      ctx.restore();
+    },
+  };
+
   // 이벤트 진행 구간: 기간만큼 리본(간트 막대)을 그려 언제부터 언제까지인지 바로 보이게 한다.
   // 리본이 좁으면 번호만 남기고, 번호는 아래 '월간 이벤트 계획' 표와 짝을 이룬다.
   const RIBBON_H = 16;
@@ -149,7 +173,7 @@
     },
   };
 
-  Chart.register(valueLabels, eventBands);
+  Chart.register(restDays, valueLabels, eventBands);
   Chart.defaults.font.family = '"Gowun Dodum", "Malgun Gothic", sans-serif';
   Chart.defaults.color = '#6b7688';
   Chart.defaults.maintainAspectRatio = false;

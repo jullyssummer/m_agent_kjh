@@ -48,6 +48,66 @@
   const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / 86400000) + 1;
   const monthLabel = (m) => `${Number(m.slice(5, 7))}월`;
 
+  // 공휴일 (2024~2026). 음력 명절·대체공휴일은 실제 달력과 한 번 대조해 주세요.
+  const HOLIDAYS = {
+    '2024-01-01': '신정',
+    '2024-02-09': '설 연휴',
+    '2024-02-10': '설날',
+    '2024-02-11': '설 연휴',
+    '2024-02-12': '대체공휴일',
+    '2024-03-01': '삼일절',
+    '2024-04-10': '국회의원선거',
+    '2024-05-05': '어린이날',
+    '2024-05-06': '대체공휴일',
+    '2024-05-15': '부처님오신날',
+    '2024-06-06': '현충일',
+    '2024-08-15': '광복절',
+    '2024-09-16': '추석 연휴',
+    '2024-09-17': '추석',
+    '2024-09-18': '추석 연휴',
+    '2024-10-03': '개천절',
+    '2024-10-09': '한글날',
+    '2024-12-25': '성탄절',
+    '2025-01-01': '신정',
+    '2025-01-28': '설 연휴',
+    '2025-01-29': '설날',
+    '2025-01-30': '설 연휴',
+    '2025-03-01': '삼일절',
+    '2025-03-03': '대체공휴일',
+    '2025-05-05': '어린이날·부처님오신날',
+    '2025-05-06': '대체공휴일',
+    '2025-06-06': '현충일',
+    '2025-08-15': '광복절',
+    '2025-10-03': '개천절',
+    '2025-10-05': '추석 연휴',
+    '2025-10-06': '추석',
+    '2025-10-07': '추석 연휴',
+    '2025-10-08': '대체공휴일',
+    '2025-10-09': '한글날',
+    '2025-12-25': '성탄절',
+    '2026-01-01': '신정',
+    '2026-02-16': '설 연휴',
+    '2026-02-17': '설날',
+    '2026-02-18': '설 연휴',
+    '2026-03-01': '삼일절',
+    '2026-03-02': '대체공휴일',
+    '2026-05-05': '어린이날',
+    '2026-05-24': '부처님오신날',
+    '2026-05-25': '대체공휴일',
+    '2026-06-06': '현충일',
+    '2026-08-15': '광복절',
+    '2026-09-24': '추석 연휴',
+    '2026-09-25': '추석',
+    '2026-09-26': '추석 연휴',
+    '2026-10-03': '개천절',
+    '2026-10-09': '한글날',
+    '2026-12-25': '성탄절',
+  };
+  const holidayOf = (date) => HOLIDAYS[date] || null;
+  const isRestDay = (date) => isWeekend(date) || !!HOLIDAYS[date];
+  const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
+  const dayName = (date) => DAY_NAMES[toDate(date).getDay()];
+
   const SEASON = { 1: 1.0, 2: 0.96, 3: 1.05, 4: 1.08, 5: 1.13, 6: 1.09, 7: 1.16, 8: 1.19, 9: 1.22, 10: 1.1, 11: 1.06, 12: 1.14 };
   function trendOf(monthKey) {
     const year = Number(monthKey.slice(0, 4));
@@ -156,7 +216,8 @@
 
   eachDay(START, LAST_DATA_DAY).forEach((date) => {
     const trend = trendOf(monthOf(date));
-    const dow = DOW_FACTOR[toDate(date).getDay()];
+    // 공휴일은 주말 수준으로 유입이 올라간다
+    const dow = holidayOf(date) ? Math.max(DOW_FACTOR[toDate(date).getDay()], 1.24) : DOW_FACTOR[toDate(date).getDay()];
     const basePaid = 268 * trend * dow * between(0.94, 1.06);
     const baseCoupon = basePaid * between(0.4, 0.48);
 
@@ -559,7 +620,21 @@
     seriesThrough,
     replaceDays,
     replaceEvents,
-    util: { toDate, toKey, addDays, eachDay, monthOf, isWeekend, daysBetween, monthLabel, hasRaffle, hasAll },
+    util: {
+      toDate,
+      toKey,
+      addDays,
+      eachDay,
+      monthOf,
+      isWeekend,
+      isRestDay,
+      holidayOf,
+      dayName,
+      daysBetween,
+      monthLabel,
+      hasRaffle,
+      hasAll,
+    },
     fmt,
   };
 })(window);

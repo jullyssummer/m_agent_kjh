@@ -16,7 +16,7 @@
       <span class="meta">데이터 기준일 <b id="asOf">2026-09-10</b> · 화면의 모든 수치는 더미 데이터</span>
     </div>
     <nav class="tabs" id="viewTabs">
-      <button class="tab active" data-view="perf">현재 실적 파악</button>
+      <button class="tab active" data-view="perf">월별 실적 파악</button>
       <button class="tab" data-view="compare">실적 비교 분석</button>
       <button class="tab" data-view="forecast">마감 예측 <span class="lock-badge">준비중</span></button>
     </nav>
@@ -60,12 +60,23 @@
         </section>
 
         <section class="card">
-          <header class="card-head"><h2>담당자 코멘트</h2></header>
+          <header class="card-head">
+            <h2>담당자 코멘트</h2>
+            <span class="hint" id="commentScope"></span>
+          </header>
           <form class="comment-form" id="commentForm">
+            <select id="commentKind">
+              <option value="weekly">주간 코멘트</option>
+              <option value="closing">월 마감 코멘트</option>
+            </select>
             <input type="text" id="commentText" placeholder="이번 주 실적에 대한 코멘트를 남겨주세요" maxlength="300">
             <button class="btn small" type="submit">등록</button>
           </form>
           <ul class="comment-list" id="commentList"></ul>
+          <details class="comment-archive">
+            <summary>지난 달 마감 코멘트 아카이브 <span id="archiveCount"></span></summary>
+            <ul class="comment-list" id="archiveList"></ul>
+          </details>
         </section>
 
         <section class="card">

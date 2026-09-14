@@ -155,7 +155,14 @@
   function renderTimelineChart(months) {
     const dates = months.flatMap((m) => monthRange(m));
     const byDate = new Map(BTV.days.map((d) => [d.date, d]));
-    const labels = dates.map((d) => (d.slice(8) === '01' ? `${Number(d.slice(5, 7))}/1` : fmt.date(d)));
+    // 날짜 아래 요일을 같이 찍고, 휴일은 축 글자색으로도 구분한다
+    const dayTypes = dates.map((d) => (util.holidayOf(d) ? 'holiday' : util.isWeekend(d) ? 'weekend' : 'weekday'));
+    const labels = dates.map((d) => [fmt.date(d), util.dayName(d)]);
+    const tickColor = (ctx) => {
+      const type = dayTypes[ctx.index];
+      if (type === 'holiday') return '#d94f3d';
+      return util.dayName(dates[ctx.index]) === '토' ? '#0d5bd1' : type === 'weekend' ? '#d94f3d' : '#6b7688';
+    };
     const paid = dates.map((d) => (byDate.has(d) ? byDate.get(d).paid : null));
     const coupon = dates.map((d) => (byDate.has(d) ? byDate.get(d).coupon : null));
 
@@ -228,7 +235,9 @@
             tooltip: {
               callbacks: {
                 title(items) {
-                  return dates[items[0].dataIndex];
+                  const date = dates[items[0].dataIndex];
+                  const holiday = util.holidayOf(date);
+                  return `${date} (${util.dayName(date)})${holiday ? ` · ${holiday}` : ''}`;
                 },
                 afterBody(items) {
                   const date = dates[items[0].dataIndex];
@@ -241,21 +250,25 @@
           },
           scales: {
             y: { beginAtZero: true, grid: { color: Charts.COLOR.grid } },
-            x: { grid: { display: false } },
+            x: { grid: { display: false }, ticks: { color: tickColor, font: { size: 10 } } },
           },
         },
       },
       {
         $showLabels: el('showLabels').checked,
         $eventBands: bands,
+        $dayTypes: dayTypes,
         $labelStep: dates.length > 70 ? 3 : dates.length > 40 ? 2 : 1,
       }
     );
 
-    el('chartHint').textContent =
-      months.length > 1
-        ? `${months.map(periodLabel).join(' → ')} 를 이어서 표시합니다. 이벤트 리본은 기간에 맞춰 함께 이어집니다.`
-        : '이벤트 진행 구간은 상단 리본으로 표기됩니다. 여러 월을 선택하면 이어서 볼 수 있습니다.';
+    const holidays = dates.filter((d) => util.holidayOf(d));
+    el('chartHint').innerHTML =
+      `<span class="day-key"><i class="weekend"></i>주말</span> <span class="day-key"><i class="holiday"></i>공휴일</span> ` +
+      (holidays.length ? `· ${holidays.map((d) => `${fmt.date(d)} ${util.holidayOf(d)}`).join(', ')} ` : '') +
+      (months.length > 1
+        ? `· ${months.map(periodLabel).join(' → ')} 를 이어서 표시합니다.`
+        : '· 이벤트 진행 구간은 상단 리본으로 표기됩니다. 여러 월을 선택하면 이어서 볼 수 있습니다.');
   }
 
   // 같은 일자끼리 겹쳐 월별 추이 모양을 비교한다 (월말에 전월 전체와 견주는 용도)
@@ -560,21 +573,32 @@
       <tbody>${body}</tbody>`;
   }
 
+  function commentItem(c, showMonth) {
+    const closing = c.kind === 'closing';
+    return `<li class="${closing ? 'closing' : ''}">
+      <div class="body">
+        <span class="tag ${closing ? 'plan' : ''}">${closing ? '월 마감' : '주간'}</span>
+        ${showMonth ? `<span class="who">${util.monthLabel(c.month)}</span>` : c.week ? `<span class="who">${c.week}주차</span>` : ''}
+        <span class="when">${new Date(c.at).toLocaleDateString('ko-KR')} · ${c.author}</span>
+        <p>${c.text.replace(/</g, '&lt;')}</p>
+      </div>
+      <button class="icon-btn" data-del="${c.id}" title="삭제">×</button>
+    </li>`;
+  }
+
   function renderComments() {
-    const list = Store.commentsOf(month);
+    // 마감 코멘트를 위로 올려 그 달의 결론이 먼저 보이게 한다
+    const list = Store.commentsOf(month).slice().sort((a, b) => (a.kind === 'closing' ? -1 : b.kind === 'closing' ? 1 : 0));
+    el('commentScope').textContent = `${month.slice(0, 4)}년 ${util.monthLabel(month)} 기준 · 월별로 저장됩니다`;
     el('commentList').innerHTML = list.length
-      ? list
-          .map(
-            (c) => `<li>
-        <div class="body">
-          <span class="who">${c.author}</span><span class="when">${new Date(c.at).toLocaleString('ko-KR')}</span>
-          <p>${c.text.replace(/</g, '&lt;')}</p>
-        </div>
-        <button class="icon-btn" data-del="${c.id}" title="삭제">×</button>
-      </li>`
-          )
-          .join('')
+      ? list.map((c) => commentItem(c, false)).join('')
       : '<li class="empty">등록된 코멘트가 없습니다.</li>';
+
+    const archive = Store.closingComments(month);
+    el('archiveCount').textContent = `(${archive.length}건)`;
+    el('archiveList').innerHTML = archive.length
+      ? archive.map((c) => commentItem(c, true)).join('')
+      : '<li class="empty">다른 달의 마감 코멘트가 아직 없습니다.</li>';
   }
 
   function render() {
@@ -609,9 +633,13 @@
 
     monthSel.addEventListener('change', () => {
       month = monthSel.value;
-      // 조회 월을 바꾸면 그래프도 그 달 기준으로 되돌린다
+      // 조회 월을 바꾸면 시트 안의 그래프·Seg 기간도 그 달 기준으로 따라간다
       chartMonths.clear();
       chartMonths.add(month);
+      segPeriods.clear();
+      const idx = BTV.months.indexOf(month);
+      if (idx > 0) segPeriods.add(BTV.months[idx - 1]);
+      segPeriods.add(month);
       render();
     });
     el('showLabels').addEventListener('change', renderChart);
@@ -671,16 +699,18 @@
       e.preventDefault();
       const text = el('commentText').value.trim();
       if (!text) return;
-      Store.addComment(month, text);
+      Store.addComment(month, text, el('commentKind').value);
       el('commentText').value = '';
       renderComments();
     });
-    el('commentList').addEventListener('click', (e) => {
-      const id = e.target.dataset.del;
-      if (!id) return;
-      Store.removeComment(id);
-      renderComments();
-    });
+    ['commentList', 'archiveList'].forEach((id) =>
+      el(id).addEventListener('click', (e) => {
+        const commentId = e.target.dataset.del;
+        if (!commentId) return;
+        Store.removeComment(commentId);
+        renderComments();
+      })
+    );
 
     render();
   }
