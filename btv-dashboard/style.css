@@ -265,17 +265,11 @@ td.delta-cell .delta-val { position: relative; font-weight: 700; }
 .comment-archive summary:hover { color: var(--brand); }
 .comment-archive .comment-list { margin-top: 8px; }
 
-.lock-badge {
-  font-size: 10px; padding: 1px 5px; border-radius: 4px;
-  background: #fff4e5; color: #b5711a; border: 1px solid #f0d5ae; margin-left: 4px;
-}
-.lock-card { text-align: center; padding: 40px 20px; }
-.lock-card h2 { margin: 0 0 8px; font-size: 17px; }
-.lock-card p { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
-.lock-card form { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
-.lock-error { color: var(--warn); font-size: 12px; }
-#forecastBody .signal.warn { display: flex; align-items: center; gap: 12px; }
-#forecastBody .signal.warn .btn { margin-left: auto; }
+.landing-card { text-align: center; padding: 56px 24px; }
+.landing-card h2 { margin: 0 0 10px; font-size: 20px; }
+.landing-card p { color: var(--muted); font-size: 14px; margin: 0 0 20px; }
+.landing-card .btn { display: inline-block; text-decoration: none; padding: 11px 22px; font-size: 15px; }
+.landing-url { font-size: 12px; color: var(--muted); margin: 16px 0 0 !important; word-break: break-all; }
 
 /* 교차분석 드릴다운 · 표본 신뢰도 */
 td.drillable { cursor: pointer; }

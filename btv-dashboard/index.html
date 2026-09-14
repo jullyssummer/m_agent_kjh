@@ -18,7 +18,7 @@
     <nav class="tabs" id="viewTabs">
       <button class="tab active" data-view="perf">월별 실적</button>
       <button class="tab" data-view="compare">캠페인 별 실적</button>
-      <button class="tab" data-view="forecast">마감 예측 <span class="lock-badge">준비중</span></button>
+      <button class="tab" data-view="sim">시뮬레이터</button>
     </nav>
     <div class="actions">
       <label class="btn" for="csvInput">CSV 업로드</label>
@@ -282,60 +282,14 @@
         </section>
       </section>
 
-      <!-- 3. 마감 예측 (미완성 · 잠금) -->
-      <section class="view" id="view-forecast">
-        <section class="card lock-card" id="forecastLock">
-          <h2>마감 예측 · 준비중</h2>
-          <p>아직 검증 중인 기능이라 잠가 두었습니다. 담당자 코드를 입력하면 열립니다.</p>
-          <form id="forecastUnlock">
-            <input type="password" id="forecastCode" placeholder="담당자 코드" autocomplete="off">
-            <button class="btn small" type="submit">열기</button>
-            <span class="lock-error" id="forecastError" hidden>코드가 올바르지 않습니다.</span>
-          </form>
+      <!-- 3. 시뮬레이터 (별도 앱으로 연결) -->
+      <section class="view" id="view-sim">
+        <section class="card landing-card">
+          <h2>시뮬레이터</h2>
+          <p>시뮬레이터는 별도 앱에서 운영됩니다. 아래 버튼으로 이동하세요.</p>
+          <a class="btn" href="https://pg-apps.skbroadband.com/btvp-mkt-agt/" target="_blank" rel="noopener">시뮬레이터 열기</a>
+          <p class="landing-url">https://pg-apps.skbroadband.com/btvp-mkt-agt/</p>
         </section>
-
-        <div id="forecastBody" hidden>
-        <div class="signal warn">⚠ 검증 중인 기능입니다. 수치는 참고용이며 외부 공유 전 반드시 확인이 필요합니다.
-          <button class="btn small ghost" id="forecastRelock">다시 잠그기</button>
-        </div>
-        <div class="toolbar">
-          <label>예측 대상 월
-            <select id="forecastMonth"></select>
-          </label>
-          <label>트렌드 구간
-            <select id="trendWindow">
-              <option value="7">최근 7일</option>
-              <option value="14" selected>최근 14일</option>
-              <option value="28">최근 28일</option>
-            </select>
-          </label>
-          <button class="btn small ghost" id="resetWeights">가중치 추천값으로 초기화</button>
-        </div>
-
-        <div class="kpi-grid" id="forecastKpis"></div>
-        <div id="forecastSignals"></div>
-
-        <section class="card">
-          <header class="card-head">
-            <h2>실적 추이 및 마감 예측</h2>
-            <span class="hint">실선 = 실적, 점선 = 예측</span>
-          </header>
-          <div class="chart-wrap tall"><canvas id="forecastChart"></canvas></div>
-        </section>
-
-        <section class="card">
-          <header class="card-head">
-            <h2>예정 이벤트 가중치</h2>
-            <span class="hint">과거 유사 이벤트 실적으로 추천값을 계산합니다. 직접 조정하면 예측에 즉시 반영됩니다.</span>
-          </header>
-          <div class="table-wrap"><table id="weightTable"></table></div>
-        </section>
-
-        <section class="card">
-          <header class="card-head"><h2>시나리오별 마감 전망</h2></header>
-          <div class="table-wrap"><table id="scenarioTable"></table></div>
-        </section>
-        </div>
       </section>
     </div>
 
@@ -394,7 +348,6 @@
   <script src="js/charts.js"></script>
   <script src="js/perf.js"></script>
   <script src="js/compare.js"></script>
-  <script src="js/forecast.js"></script>
   <script src="js/chat.js"></script>
   <script src="js/app.js"></script>
 </body>

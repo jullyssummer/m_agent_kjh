@@ -3,17 +3,6 @@
 
   const el = (id) => document.getElementById(id);
 
-  // 마감 예측은 아직 검증 중이라 잠가 둔다. 코드를 바꾸려면 이 값을 수정.
-  // 정적 페이지라 화면을 가릴 뿐, 소스를 열면 보이는 수준의 잠금이다.
-  const FORECAST_CODE = 'btv0913';
-  const UNLOCK_KEY = 'btvDashboard.forecastUnlocked';
-
-  function setForecastLock(unlocked) {
-    el('forecastLock').hidden = unlocked;
-    el('forecastBody').hidden = !unlocked;
-    if (unlocked) Forecast.render();
-  }
-
   /* ---------- CSV ---------- */
   function splitRow(line) {
     const out = [];
@@ -146,7 +135,7 @@
   }
 
   function syncMonthOptions() {
-    ['perfMonth', 'forecastMonth'].forEach((id) => {
+    ['perfMonth'].forEach((id) => {
       const sel = el(id);
       const existing = new Set([...sel.options].map((o) => o.value));
       BTV.months.forEach((m) => {
@@ -161,7 +150,6 @@
     el('asOf').textContent = BTV.LAST_DATA_DAY;
     Perf.render();
     Compare.render();
-    if (!el('forecastBody').hidden) Forecast.render();
   }
 
   function applyUpload(kind, rows, persist) {
@@ -223,7 +211,6 @@
     el('asOf').textContent = BTV.LAST_DATA_DAY;
     Perf.init();
     Compare.init();
-    Forecast.init();
     Chat.init();
 
     if (uploads.daily || uploads.events) {
@@ -240,23 +227,7 @@
       Chat.setContext(view);
       // 숨겨진 상태에서 그려진 차트의 크기를 바로잡는다
       if (view === 'compare') Compare.render();
-      if (view === 'forecast' && !el('forecastBody').hidden) Forecast.render();
       if (view === 'perf') Perf.render();
-    });
-
-    setForecastLock(localStorage.getItem(UNLOCK_KEY) === '1');
-    el('forecastUnlock').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const ok = el('forecastCode').value.trim() === FORECAST_CODE;
-      el('forecastError').hidden = ok;
-      el('forecastCode').value = '';
-      if (!ok) return;
-      localStorage.setItem(UNLOCK_KEY, '1');
-      setForecastLock(true);
-    });
-    el('forecastRelock').addEventListener('click', () => {
-      localStorage.removeItem(UNLOCK_KEY);
-      setForecastLock(false);
     });
 
     el('csvInput').addEventListener('change', (e) => {

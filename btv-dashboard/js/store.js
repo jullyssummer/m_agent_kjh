@@ -2,7 +2,7 @@
   'use strict';
 
   const KEY = 'btvDashboard.v1';
-  const initial = { comments: [], insights: [], targets: {}, weights: {}, uploads: {}, memos: {} };
+  const initial = { comments: [], insights: [], targets: {}, uploads: {}, memos: {} };
 
   function load() {
     try {
@@ -87,17 +87,6 @@
     },
     targetOf(month) {
       return state.targets[month] || BTV.kpiTargets[month] || { paid: 0, coupon: 0 };
-    },
-    setWeight(eventId, weight) {
-      state.weights[eventId] = weight;
-      save();
-    },
-    weightOf(eventId, fallback) {
-      return state.weights[eventId] != null ? state.weights[eventId] : fallback;
-    },
-    clearWeights() {
-      state.weights = {};
-      save();
     },
     targetCac() {
       return state.targetCac != null ? state.targetCac : 5000;

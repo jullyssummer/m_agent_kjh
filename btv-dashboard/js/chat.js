@@ -8,11 +8,11 @@
   const pending = new Map();
   let context = 'perf';
 
-  const CONTEXT_LABEL = { perf: '월별 실적', compare: '캠페인 별 실적', forecast: '마감 예측' };
+  const CONTEXT_LABEL = { perf: '월별 실적', compare: '캠페인 별 실적', sim: '시뮬레이터' };
   const SUGGESTIONS = {
     perf: ['이번 달 어때?', '이번 주 요약해줘', '세그먼트별로 보면?'],
     compare: ['가장 성과 좋은 이벤트는?', '할인율 효과 있어?', '추첨 경품 효율 비교해줘'],
-    forecast: ['이번 달 마감 얼마나 될까?', '목표 달성 가능해?', '다음 이벤트 뭐로 할까?'],
+    sim: ['다음 이벤트 뭐로 할까?', '할인율 효과 있어?', '가장 성과 좋은 이벤트는?'],
   };
 
   const table = (head, rows) =>
@@ -128,28 +128,6 @@
     };
   }
 
-  function forecastAnswer() {
-    const r = Forecast.compute('base');
-    const gap = r.finalTotal - r.targetTotal;
-    const text = `${util.monthLabel(Forecast.month)} 예상 마감은 ${fmt.num(r.finalTotal)}건(유료 ${fmt.num(r.finalPaid)} / 쿠폰 ${fmt.num(r.finalCoupon)})으로 목표 ${fmt.num(r.targetTotal)} 대비 ${gap >= 0 ? '초과' : '미달'} ${fmt.num(Math.abs(gap))}건 (달성률 ${fmt.pct(r.targetTotal ? r.finalTotal / r.targetTotal : 0, 1)})`;
-    const low = Forecast.compute('low');
-    const high = Forecast.compute('high');
-    return {
-      html: `<b>마감 예측</b><br>${text}
-        ${table(
-          ['시나리오', '예상 마감', '목표 대비'],
-          [
-            ['보수', fmt.num(low.finalTotal), fmt.num(low.finalTotal - low.targetTotal)],
-            ['기본', fmt.num(r.finalTotal), fmt.num(gap)],
-            ['공격', fmt.num(high.finalTotal), fmt.num(high.finalTotal - high.targetTotal)],
-          ]
-        )}
-        ${r.planned.length ? `잔여 ${r.remainDays}일 · 예정 이벤트 ${r.planned.length}건 반영` : `잔여 ${r.remainDays}일 · 예정 이벤트 없음`}`,
-      insight: text,
-      tags: [util.monthLabel(Forecast.month), '마감예측'],
-    };
-  }
-
   function recommendation() {
     const list = BTV.doneEvents();
     const byType = [...groupBy(list, (e) => e.type).entries()]
@@ -228,7 +206,6 @@
   }
 
   const INTENTS = [
-    { keys: ['마감', '예측', '전망', '달성 가능', '얼마나 될'], fn: forecastAnswer },
     { keys: ['다음', '추천', '기획', '뭐로', '어떻게 할'], fn: recommendation },
     { keys: ['할인'], fn: discountAnalysis },
     { keys: ['경품', '추첨', '응모', '경쟁률', '수령'], fn: raffleAnalysis },
@@ -242,7 +219,7 @@
   function answer(question) {
     const q = question.toLowerCase();
     const hit = INTENTS.find((i) => i.keys.some((k) => q.includes(k.toLowerCase())));
-    const contextFallback = { perf: monthSummary, compare: topEvents, forecast: forecastAnswer };
+    const contextFallback = { perf: monthSummary, compare: topEvents, sim: recommendation };
     const result = hit ? hit.fn() : contextFallback[context]();
     if (!hit) result.html = `질문을 정확히 이해하지 못해 현재 화면 기준으로 답변합니다.<br><br>${result.html}`;
 
