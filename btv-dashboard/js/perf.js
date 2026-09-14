@@ -21,6 +21,8 @@
     return parts.join(' · ');
   }
 
+  const eventColor = (i) => Charts.EVENT_COLORS[i % Charts.EVENT_COLORS.length];
+
   function statusTag(status) {
     const cls = status === '진행중' ? 'live' : status === '예정' ? 'plan' : 'done';
     return `<span class="tag ${cls}">${status}</span>`;
@@ -139,15 +141,34 @@
     const coupon = dates.map((d) => (byDate.has(d) ? byDate.get(d).coupon : null));
 
     const bands = BTV.eventsOfMonth(month)
-      .map((ev) => {
+      .map((ev, i) => {
         const from = dates.indexOf(ev.startDate < dates[0] ? dates[0] : ev.startDate);
         const to = dates.indexOf(ev.endDate > dates[dates.length - 1] ? dates[dates.length - 1] : ev.endDate);
         if (from < 0 || to < 0) return null;
-        const shortName = ev.name.length > 13 ? `${ev.name.slice(0, 12)}…` : ev.name;
-        return { from, to, planned: ev.status === '예정', label: `${shortName} ${offerLabel(ev)}` };
+        const color = eventColor(i);
+        return {
+          from,
+          to,
+          no: i + 1,
+          color,
+          tint: `${color}12`,
+          planned: ev.status === '예정',
+          label: `${ev.name.replace(/^\d+년 \d+월 /, '')} · ${offerLabel(ev)}`,
+        };
       })
-      .filter(Boolean)
-      .sort((a, b) => a.from - b.from);
+      .filter(Boolean);
+
+    // 기간이 겹치는 이벤트는 위로 쌓아 리본이 서로 가리지 않게 한다
+    const lanes = [];
+    bands
+      .slice()
+      .sort((a, b) => a.from - b.from)
+      .forEach((b) => {
+        let lane = 0;
+        while (lanes[lane] != null && lanes[lane] >= b.from) lane += 1;
+        lanes[lane] = b.to;
+        b.level = lane;
+      });
 
     Charts.render(
       'monthChart',
@@ -179,7 +200,7 @@
           ],
         },
         options: {
-          layout: { padding: { top: Math.min(90, 16 + bands.length * 8) } },
+          layout: { padding: { top: 18 + lanes.length * Charts.RIBBON_GAP } },
           interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { position: 'bottom' },
@@ -209,15 +230,16 @@
     const list = BTV.eventsOfMonth(month);
     el('eventPlanTable').innerHTML = `
       <thead><tr>
-        <th class="left">기간</th><th class="left">이벤트명</th><th class="left">타입</th>
+        <th class="left">#</th><th class="left">기간</th><th class="left">이벤트명</th><th class="left">타입</th>
         <th>할인율</th><th class="left">경품 종류</th><th>경품 단가</th><th>모수</th><th class="left">상태</th>
       </tr></thead>
       <tbody>${
         list.length
           ? list
               .map(
-                (e) => `<tr>
-        <td class="left">${fmt.date(e.startDate)} ~ ${fmt.date(e.endDate)}</td>
+                (e, i) => `<tr>
+        <td class="left"><span class="event-no" style="background:${eventColor(i)}">${i + 1}</span></td>
+        <td class="left">${fmt.date(e.startDate)} ~ ${fmt.date(e.endDate)} <span class="hint">(${e.totalDays}일)</span></td>
         <td class="left">${e.name}</td>
         <td class="left">${e.type}</td>
         <td class="num">${e.discountRate}%</td>
@@ -228,7 +250,7 @@
       </tr>`
               )
               .join('')
-          : '<tr><td colspan="8" class="left">해당 월 이벤트가 없습니다.</td></tr>'
+          : '<tr><td colspan="9" class="left">해당 월 이벤트가 없습니다.</td></tr>'
       }</tbody>`;
   }
 

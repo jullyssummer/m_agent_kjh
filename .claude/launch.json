@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "btv-dashboard",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "serve", "-l", "5174", "btv-dashboard"],
+      "port": 5174
+    },
+    {
       "name": "ggb-static",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["-y", "serve", "-l", "5173", "."],
