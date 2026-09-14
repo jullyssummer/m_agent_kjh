@@ -31,9 +31,12 @@
         const below = di % 2 === 1;
         const values = ds.data.filter((v) => v != null);
         const peak = values.length ? Math.max(...values) : null;
+        const step = chart.$labelStep || 1;
         meta.data.forEach((pt, i) => {
           const v = ds.data[i];
           if (v == null) return;
+          // 구간이 길어지면 레이블을 솎아 낸다 (최고점은 항상 표시)
+          if (step > 1 && i % step !== 0 && v !== peak) return;
           const text = Math.round(v).toLocaleString();
           const y = pt.y + (below ? 14 : -11);
           ctx.strokeText(text, pt.x, y);

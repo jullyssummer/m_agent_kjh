@@ -9,6 +9,9 @@
   let segMetric = 'all';
   const segPeriods = new Set(BTV.months.slice(-2)); // 기본값: 전월 + 당월(전일 기준)
   let showAllPeriods = false;
+  const chartMonths = new Set([BTV.util.monthOf(BTV.LAST_DATA_DAY)]);
+  let showAllChartMonths = false;
+  let chartMode = 'timeline';
 
   function monthRange(m) {
     const last = new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0).getDate();
@@ -134,13 +137,31 @@
 
   /* ---------- 월간 그래프 ---------- */
   function renderChart() {
-    const dates = monthRange(month);
-    const byDate = new Map(BTV.dayRows(month).map((d) => [d.date, d]));
-    const labels = dates.map((d) => fmt.date(d));
+    el('chartMonths').innerHTML = chipMarkup(chartMonths, showAllChartMonths);
+    el('overlaySeriesWrap').hidden = chartMode !== 'overlay';
+    const months = BTV.months.filter((m) => chartMonths.has(m));
+
+    if (!months.length) {
+      el('chartHint').textContent = '비교할 월을 1개 이상 선택하세요.';
+      if (Charts.registry.monthChart) Charts.registry.monthChart.destroy();
+      delete Charts.registry.monthChart;
+      return;
+    }
+    if (chartMode === 'overlay' && months.length > 1) renderOverlayChart(months);
+    else renderTimelineChart(months);
+  }
+
+  // 여러 달을 이어 붙여 하나의 연속된 추이로 본다 (월초에 전월 흐름까지 같이 보는 용도)
+  function renderTimelineChart(months) {
+    const dates = months.flatMap((m) => monthRange(m));
+    const byDate = new Map(BTV.days.map((d) => [d.date, d]));
+    const labels = dates.map((d) => (d.slice(8) === '01' ? `${Number(d.slice(5, 7))}/1` : fmt.date(d)));
     const paid = dates.map((d) => (byDate.has(d) ? byDate.get(d).paid : null));
     const coupon = dates.map((d) => (byDate.has(d) ? byDate.get(d).coupon : null));
 
-    const bands = BTV.eventsOfMonth(month)
+    const bands = months
+      .flatMap((m) => BTV.eventsOfMonth(m))
+      .filter((ev, i, arr) => arr.findIndex((x) => x.id === ev.id) === i)
       .map((ev, i) => {
         const from = dates.indexOf(ev.startDate < dates[0] ? dates[0] : ev.startDate);
         const to = dates.indexOf(ev.endDate > dates[dates.length - 1] ? dates[dates.length - 1] : ev.endDate);
@@ -206,9 +227,12 @@
             legend: { position: 'bottom' },
             tooltip: {
               callbacks: {
+                title(items) {
+                  return dates[items[0].dataIndex];
+                },
                 afterBody(items) {
                   const date = dates[items[0].dataIndex];
-                  const evs = BTV.eventsOfMonth(month).filter((e) => e.startDate <= date && date <= e.endDate);
+                  const evs = BTV.allEvents().filter((e) => e.startDate <= date && date <= e.endDate);
                   if (!evs.length) return '';
                   return evs.map((e) => `· ${e.name} (${e.type}, ${offerLabel(e)})`);
                 },
@@ -221,8 +245,71 @@
           },
         },
       },
-      { $showLabels: el('showLabels').checked, $eventBands: bands }
+      {
+        $showLabels: el('showLabels').checked,
+        $eventBands: bands,
+        $labelStep: dates.length > 70 ? 3 : dates.length > 40 ? 2 : 1,
+      }
     );
+
+    el('chartHint').textContent =
+      months.length > 1
+        ? `${months.map(periodLabel).join(' → ')} 를 이어서 표시합니다. 이벤트 리본은 기간에 맞춰 함께 이어집니다.`
+        : '이벤트 진행 구간은 상단 리본으로 표기됩니다. 여러 월을 선택하면 이어서 볼 수 있습니다.';
+  }
+
+  // 같은 일자끼리 겹쳐 월별 추이 모양을 비교한다 (월말에 전월 전체와 견주는 용도)
+  function renderOverlayChart(months) {
+    const series = el('overlaySeries').value;
+    const seriesLabel = { paid: '유료 신규', coupon: '쿠폰 가입', total: '유료+쿠폰 합계' }[series];
+    const maxDay = Math.max(...months.map((m) => monthRange(m).length));
+    const labels = Array.from({ length: maxDay }, (_, i) => `${i + 1}일`);
+
+    const datasets = months.map((m, i) => {
+      const byDay = new Map(BTV.dayRows(m).map((d) => [Number(d.date.slice(8, 10)), d]));
+      const color = Charts.EVENT_COLORS[i % Charts.EVENT_COLORS.length];
+      const isLatest = i === months.length - 1;
+      const short = `${m.slice(2, 4)}.${m.slice(5, 7)}`;
+      return {
+        label: m === util.monthOf(BTV.LAST_DATA_DAY) ? `${short} (${fmt.date(BTV.LAST_DATA_DAY)}까지)` : short,
+        data: labels.map((_, idx) => {
+          const row = byDay.get(idx + 1);
+          if (!row) return null;
+          return series === 'total' ? row.paid + row.coupon : row[series];
+        }),
+        borderColor: color,
+        backgroundColor: `${color}1a`,
+        borderWidth: isLatest ? 2.5 : 1.5,
+        borderDash: isLatest ? [] : [5, 3],
+        tension: 0.3,
+        pointRadius: isLatest ? 2.5 : 1.5,
+        fill: isLatest,
+        spanGaps: false,
+      };
+    });
+
+    Charts.render(
+      'monthChart',
+      {
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+          layout: { padding: { top: 12 } },
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'bottom' },
+            title: { display: true, text: `${seriesLabel} · 월별 일자 추이 비교`, color: '#6b7688' },
+          },
+          scales: {
+            y: { beginAtZero: true, grid: { color: Charts.COLOR.grid } },
+            x: { grid: { display: false } },
+          },
+        },
+      },
+      { $showLabels: el('showLabels').checked && months.length <= 2, $eventBands: [], $labelStep: 2 }
+    );
+
+    el('chartHint').textContent = `${months.map(periodLabel).join(' vs ')} 를 같은 일자 기준으로 겹쳐 비교합니다. 가장 최근 월이 실선, 나머지는 점선입니다. (겹쳐 보기에서는 이벤트 리본을 표시하지 않습니다)`;
   }
 
   /* ---------- 표 ---------- */
@@ -335,21 +422,26 @@
     return used / days;
   }
 
-  function renderPeriodChips() {
-    // 3개년치면 칩이 30개가 넘으므로 최근 12개월 + 선택한 기간만 먼저 보여준다
+  // 3개년치면 칩이 30개가 넘으므로 최근 12개월 + 선택한 기간만 먼저 보여준다
+  function chipMarkup(selected, showAll) {
     const recent = BTV.months.slice(-12);
-    const visible = showAllPeriods ? BTV.months : BTV.months.filter((m) => recent.includes(m) || segPeriods.has(m));
+    const visible = showAll ? BTV.months : BTV.months.filter((m) => recent.includes(m) || selected.has(m));
     const hidden = BTV.months.length - visible.length;
-    el('segPeriods').innerHTML =
+    return (
       visible
         .map(
           (m) =>
-            `<button type="button" class="chip ${segPeriods.has(m) ? 'on' : ''}" data-period="${m}">${periodLabel(m)}</button>`
+            `<button type="button" class="chip ${selected.has(m) ? 'on' : ''}" data-period="${m}">${periodLabel(m)}</button>`
         )
         .join('') +
-      (hidden > 0 || showAllPeriods
-        ? `<button type="button" class="chip toggle" data-toggle="1">${showAllPeriods ? '최근 12개월만 보기' : `이전 기간 더 보기 (+${hidden})`}</button>`
-        : '');
+      (hidden > 0 || showAll
+        ? `<button type="button" class="chip toggle" data-toggle="1">${showAll ? '최근 12개월만 보기' : `이전 기간 더 보기 (+${hidden})`}</button>`
+        : '')
+    );
+  }
+
+  function renderPeriodChips() {
+    el('segPeriods').innerHTML = chipMarkup(segPeriods, showAllPeriods);
   }
 
   // 사용·가입률은 기간이 길수록 누적되므로, 경과일이 다른 기간끼리는 일 단위로 환산해 비교한다
@@ -517,9 +609,29 @@
 
     monthSel.addEventListener('change', () => {
       month = monthSel.value;
+      // 조회 월을 바꾸면 그래프도 그 달 기준으로 되돌린다
+      chartMonths.clear();
+      chartMonths.add(month);
       render();
     });
     el('showLabels').addEventListener('change', renderChart);
+    el('chartMode').addEventListener('change', (e) => {
+      chartMode = e.target.value;
+      renderChart();
+    });
+    el('overlaySeries').addEventListener('change', renderChart);
+    el('chartMonths').addEventListener('click', (e) => {
+      if (e.target.dataset.toggle) {
+        showAllChartMonths = !showAllChartMonths;
+        renderChart();
+        return;
+      }
+      const period = e.target.dataset.period;
+      if (!period) return;
+      if (chartMonths.has(period)) chartMonths.delete(period);
+      else chartMonths.add(period);
+      renderChart();
+    });
     el('segUi').addEventListener('change', (e) => {
       segUi = e.target.value;
       renderSegTable();

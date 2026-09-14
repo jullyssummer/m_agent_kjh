@@ -71,9 +71,28 @@
         <section class="card">
           <header class="card-head">
             <h2>월간 그래프 · 일자별 유료 신규 / 쿠폰 가입자</h2>
-            <span class="hint">이벤트 진행일은 상단에 이벤트명 · 오퍼 표기</span>
+            <div class="inline-filters">
+              <label>보기 방식
+                <select id="chartMode">
+                  <option value="timeline">연속 보기 (전월에 이어서)</option>
+                  <option value="overlay">겹쳐 보기 (월별 추이 비교)</option>
+                </select>
+              </label>
+              <label id="overlaySeriesWrap" hidden>비교 계열
+                <select id="overlaySeries">
+                  <option value="paid">유료 신규</option>
+                  <option value="coupon">쿠폰 가입</option>
+                  <option value="total">유료+쿠폰 합계</option>
+                </select>
+              </label>
+            </div>
           </header>
+          <div class="period-picker">
+            <span class="hint">비교 월</span>
+            <div class="chips" id="chartMonths"></div>
+          </div>
           <div class="chart-wrap tall"><canvas id="monthChart"></canvas></div>
+          <p class="hint" id="chartHint"></p>
         </section>
 
         <section class="card">
