@@ -8,7 +8,7 @@
   const pending = new Map();
   let context = 'perf';
 
-  const CONTEXT_LABEL = { perf: '월별 실적 파악', compare: '실적 비교 분석', forecast: '마감 예측' };
+  const CONTEXT_LABEL = { perf: '월별 실적', compare: '캠페인 별 실적', forecast: '마감 예측' };
   const SUGGESTIONS = {
     perf: ['이번 달 어때?', '이번 주 요약해줘', '세그먼트별로 보면?'],
     compare: ['가장 성과 좋은 이벤트는?', '할인율 효과 있어?', '추첨 경품 효율 비교해줘'],

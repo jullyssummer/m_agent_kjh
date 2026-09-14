@@ -109,11 +109,11 @@
         if (!startDate || !endDate) return null;
         const signups = toNum(val(r, EVENT_ALIAS.signups));
         const dates = BTV.util.eachDay(startDate, endDate);
-        const weekendDays = dates.filter(BTV.util.isWeekend).length;
-        const weekdayDays = dates.length - weekendDays;
-        // 주말/평일 분해값이 없으면 주말 가중 1.25로 배분
-        const weekendUnits = weekendDays * 1.25;
-        const share = weekendUnits + weekdayDays;
+        const restDays = dates.filter(BTV.util.isRestDay).length;
+        const weekdayDays = dates.length - restDays;
+        // 휴일/평일 분해값이 없으면 휴일 가중 1.25로 배분
+        const restUnits = restDays * 1.25;
+        const share = restUnits + weekdayDays;
         return {
           id: val(r, EVENT_ALIAS.id) || `UP-${startDate.replace(/-/g, '')}-${i}`,
           name: val(r, EVENT_ALIAS.name) || `업로드 이벤트 ${i + 1}`,
@@ -125,7 +125,7 @@
           endDate,
           pool: toNum(val(r, EVENT_ALIAS.pool)) || 0,
           signups,
-          weekendSignups: signups != null && share ? Math.round((signups * weekendUnits) / share) : null,
+          restSignups: signups != null && share ? Math.round((signups * restUnits) / share) : null,
           weekdaySignups: signups != null && share ? Math.round((signups * weekdayDays) / share) : null,
           entrants: toNum(val(r, EVENT_ALIAS.entrants)),
           prizeCount: toNum(val(r, EVENT_ALIAS.prizeCount)),

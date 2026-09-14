@@ -50,8 +50,11 @@
       });
       save();
     },
-    closingComments(excludeMonth) {
-      return state.comments.filter((c) => c.kind === 'closing' && c.month !== excludeMonth);
+    // 다른 달 코멘트는 주간·마감 모두 아카이브에 남긴다 (마감 코멘트를 먼저)
+    archivedComments(excludeMonth) {
+      return state.comments
+        .filter((c) => c.month !== excludeMonth)
+        .sort((a, b) => (a.month === b.month ? (a.kind === 'closing' ? -1 : 1) : a.month < b.month ? 1 : -1));
     },
     removeComment(id) {
       state.comments = state.comments.filter((c) => c.id !== id);
@@ -94,6 +97,13 @@
     },
     clearWeights() {
       state.weights = {};
+      save();
+    },
+    targetCac() {
+      return state.targetCac != null ? state.targetCac : 5000;
+    },
+    setTargetCac(value) {
+      state.targetCac = value;
       save();
     },
     setMemo(eventId, text) {

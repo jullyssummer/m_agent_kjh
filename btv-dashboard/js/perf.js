@@ -369,7 +369,7 @@
         <th class="left">구분</th><th class="left">이벤트명</th><th class="left">일정</th>
         <th class="left">타입</th><th>할인율</th>
         <th>모수</th><th>가입자 수</th><th>가입률</th>
-        <th>일평균</th><th>주말 일평균</th><th>평일 일평균</th><th class="left">비고</th>
+        <th>일평균</th><th>휴일 일평균</th><th>평일 일평균</th><th class="left">비고</th>
       </tr></thead>
       <tbody>${
         list.length
@@ -385,7 +385,7 @@
         <td class="num">${fmt.num(e.signups)}</td>
         <td class="num">${fmt.pct(e.rate)}</td>
         <td class="num">${fmt.num(e.dailyAvg)}</td>
-        <td class="num">${fmt.num(e.weekendAvg)}</td>
+        <td class="num">${fmt.num(e.restAvg)}</td>
         <td class="num">${fmt.num(e.weekdayAvg)}</td>
         <td class="left"><input class="memo-input" data-memo="${e.id}" value="${Store.memoOf(e.id).replace(/"/g, '&quot;')}" placeholder="비고 입력"></td>
       </tr>`
@@ -401,7 +401,7 @@
         <td class="num">${fmt.num(totals.signups)}</td>
         <td class="num">${fmt.pct(totals.signups / totals.pool)}</td>
         <td class="num">${fmt.num(list.reduce((s, e) => s + e.dailyAvg, 0) / list.length)}</td>
-        <td class="num">${fmt.num(list.reduce((s, e) => s + (e.weekendAvg || 0), 0) / list.length)}</td>
+        <td class="num">${fmt.num(list.reduce((s, e) => s + (e.restAvg || 0), 0) / list.length)}</td>
         <td class="num">${fmt.num(list.reduce((s, e) => s + (e.weekdayAvg || 0), 0) / list.length)}</td>
         <td></td>
       </tr></tfoot>`
@@ -594,11 +594,11 @@
       ? list.map((c) => commentItem(c, false)).join('')
       : '<li class="empty">등록된 코멘트가 없습니다.</li>';
 
-    const archive = Store.closingComments(month);
+    const archive = Store.archivedComments(month);
     el('archiveCount').textContent = `(${archive.length}건)`;
     el('archiveList').innerHTML = archive.length
       ? archive.map((c) => commentItem(c, true)).join('')
-      : '<li class="empty">다른 달의 마감 코멘트가 아직 없습니다.</li>';
+      : '<li class="empty">다른 달의 코멘트가 아직 없습니다.</li>';
   }
 
   function render() {

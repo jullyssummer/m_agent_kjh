@@ -15,6 +15,9 @@
 
 * { box-sizing: border-box; }
 
+/* .modal/.inline-filters label 등의 display 규칙이 hidden 속성을 덮지 않도록 */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: 'Gowun Dodum', 'Malgun Gothic', system-ui, sans-serif;
@@ -273,6 +276,48 @@ td.delta-cell .delta-val { position: relative; font-weight: 700; }
 .lock-error { color: var(--warn); font-size: 12px; }
 #forecastBody .signal.warn { display: flex; align-items: center; gap: 12px; }
 #forecastBody .signal.warn .btn { margin-left: auto; }
+
+/* 교차분석 드릴다운 · 표본 신뢰도 */
+td.drillable { cursor: pointer; }
+td.drillable:hover { outline: 2px solid var(--brand); outline-offset: -2px; }
+td.thin { opacity: .55; }
+td .range { font-size: 10px; color: var(--muted); }
+.drill {
+  margin-top: 12px; border: 1px solid var(--brand); border-radius: 10px;
+  background: #f7faff; padding: 12px;
+}
+.drill-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.drill-head .hint { margin-right: auto; }
+
+/* 원페이저 모달 */
+.modal {
+  position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+  background: rgba(20, 32, 60, .45); padding: 24px;
+}
+.modal-box {
+  background: #fff; border-radius: 14px; width: min(720px, 100%); max-height: 90vh;
+  overflow: auto; box-shadow: 0 20px 60px rgba(20, 32, 60, .25);
+}
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff;
+}
+.modal-head h2 { margin: 0; font-size: 16px; }
+.modal-actions { display: flex; gap: 6px; align-items: center; }
+.onepager { padding: 20px 24px 28px; }
+.onepager h3 { margin: 0 0 4px; font-size: 18px; }
+.onepager-sub { margin: 0 0 16px; color: var(--muted); font-size: 13px; }
+.onepager-table { width: 100%; white-space: normal; }
+.onepager-table th { width: 140px; color: var(--muted); font-weight: 700; vertical-align: top; background: #f8fafc; }
+.onepager-table th, .onepager-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); }
+.onepager-foot { margin: 16px 0 0; font-size: 11px; color: var(--muted); }
+
+@media print {
+  body > *:not(.layout), .topbar, .chat-dock, .views { display: none !important; }
+  .modal { position: static; background: none; padding: 0; display: block; }
+  .modal-box { box-shadow: none; max-height: none; width: 100%; }
+  .modal-actions { display: none; }
+}
 
 /* ---------- 채팅 ---------- */
 .chat-dock {

@@ -16,8 +16,8 @@
       <span class="meta">데이터 기준일 <b id="asOf">2026-09-10</b> · 화면의 모든 수치는 더미 데이터</span>
     </div>
     <nav class="tabs" id="viewTabs">
-      <button class="tab active" data-view="perf">월별 실적 파악</button>
-      <button class="tab" data-view="compare">실적 비교 분석</button>
+      <button class="tab active" data-view="perf">월별 실적</button>
+      <button class="tab" data-view="compare">캠페인 별 실적</button>
       <button class="tab" data-view="forecast">마감 예측 <span class="lock-badge">준비중</span></button>
     </nav>
     <div class="actions">
@@ -74,7 +74,7 @@
           </form>
           <ul class="comment-list" id="commentList"></ul>
           <details class="comment-archive">
-            <summary>지난 달 마감 코멘트 아카이브 <span id="archiveCount"></span></summary>
+            <summary>지난 달 코멘트 아카이브 <span id="archiveCount"></span></summary>
             <ul class="comment-list" id="archiveList"></ul>
           </details>
         </section>
@@ -176,6 +176,7 @@
                   <option value="all">전체 평균</option>
                 </select>
               </label>
+              <button class="btn small ghost" id="onePagerOpen">원페이저</button>
             </div>
           </header>
           <div id="compareCards" class="kpi-grid"></div>
@@ -203,6 +204,81 @@
           <div class="ai-comment" id="pivotComment"></div>
           <div class="table-wrap"><table id="pivotTable"></table></div>
           <p class="hint" id="pivotHint"></p>
+          <div class="drill" id="pivotDrill" hidden></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>증분 효과 · 되돌림</h2>
+            <span class="hint">이벤트가 실제로 끌어올린 순증분과, 종료 직후 수요가 꺼지는 폭</span>
+          </header>
+          <div class="kpi-grid" id="incrementalCards"></div>
+          <div class="ai-comment" id="incrementalComment"></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>전년 동기 비교</h2>
+            <span class="hint" id="seasonBasis"></span>
+          </header>
+          <div class="ai-comment" id="seasonComment"></div>
+          <div class="table-wrap"><table id="seasonTable"></table></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>이벤트 데이 커브</h2>
+            <div class="inline-filters">
+              <label>비교 대상
+                <select id="curveScope">
+                  <option value="similar">기준 + 유사 이벤트</option>
+                  <option value="type">같은 타입 전체</option>
+                </select>
+              </label>
+              <label>계열
+                <select id="curveSeries">
+                  <option value="total">전체 가입자</option>
+                  <option value="paid">유료</option>
+                  <option value="coupon">쿠폰</option>
+                </select>
+              </label>
+            </div>
+          </header>
+          <div class="chart-wrap"><canvas id="curveChart"></canvas></div>
+          <div class="ai-comment" id="curveComment"></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>예산 효율 · CAC</h2>
+            <div class="inline-filters">
+              <label>목표 CAC (원)
+                <input type="number" id="targetCac" step="100" min="0">
+              </label>
+              <button class="btn small" id="saveCac">저장</button>
+            </div>
+          </header>
+          <div class="kpi-grid" id="cacCards"></div>
+          <div class="ai-comment" id="cacComment"></div>
+          <div class="chart-wrap"><canvas id="cacChart"></canvas></div>
+          <div class="table-wrap"><table id="cacTable"></table></div>
+        </section>
+
+        <section class="card">
+          <header class="card-head">
+            <h2>오퍼 시뮬레이터</h2>
+            <span class="hint">과거 유사 이벤트 실적으로 예상 성과를 추정합니다</span>
+          </header>
+          <div class="filter-bar">
+            <label>이벤트 타입<select id="simType"></select></label>
+            <label>할인율<select id="simDiscount"></select></label>
+            <label>경품 종류<select id="simKind"></select></label>
+            <label>경품 단가<select id="simPrice"></select></label>
+            <label>기간 (일)<input type="number" id="simDays" value="7" min="1" max="31"></label>
+            <label>모수<input type="number" id="simPool" value="100000" step="1000"></label>
+          </div>
+          <div class="kpi-grid" id="simCards"></div>
+          <div class="ai-comment" id="simComment"></div>
         </section>
       </section>
 
@@ -261,6 +337,21 @@
         </section>
         </div>
       </section>
+    </div>
+
+    <!-- 이벤트 원페이저 (보고용) -->
+    <div class="modal" id="onePagerModal" hidden>
+      <div class="modal-box">
+        <header class="modal-head">
+          <h2>이벤트 원페이저</h2>
+          <div class="modal-actions">
+            <button class="btn small ghost" id="onePagerCopy">복사</button>
+            <button class="btn small ghost" id="onePagerPrint">인쇄</button>
+            <button class="icon-btn" id="onePagerClose">×</button>
+          </div>
+        </header>
+        <div class="onepager" id="onePagerBody"></div>
+      </div>
     </div>
 
     <!-- AI 채팅 + 인사이트 축적소 -->

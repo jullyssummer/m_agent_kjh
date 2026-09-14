@@ -17,8 +17,8 @@
     const organic = recent.filter((d) => !d.eventIds || !d.eventIds.length);
     const source = organic.length >= 3 ? organic : recent;
     const pickAvg = (list, key) => (list.length ? list.reduce((s, d) => s + d[key], 0) / list.length : 0);
-    const weekend = source.filter((d) => d.weekend);
-    const weekday = source.filter((d) => !d.weekend);
+    const weekend = source.filter((d) => d.rest);
+    const weekday = source.filter((d) => !d.rest);
     const fallbackPaid = pickAvg(source, 'paid');
     const fallbackCoupon = pickAvg(source, 'coupon');
     return {
@@ -79,7 +79,7 @@
     const series = dates.map((date) => {
       const row = actual.get(date);
       if (row) return { date, paid: row.paid, coupon: row.coupon, forecast: false };
-      const b = util.isWeekend(date) ? base.weekend : base.weekday;
+      const b = util.isRestDay(date) ? base.weekend : base.weekday;
       const covering = planned.filter((e) => e.startDate <= date && date <= e.endDate);
       const weight = covering.reduce((w, e) => {
         const rec = recommendedWeight(e).weight;
@@ -145,7 +145,7 @@
       <div class="kpi">
         <div class="label">예측 기준</div>
         <div class="value">${r.remainDays}일</div>
-        <div class="sub">${r.base.usedOrganic ? '이벤트 없는 날' : '최근 전체'} ${r.base.sampleSize}일 기준 · 평일 ${fmt.num(r.base.weekday.paid + r.base.weekday.coupon)} / 주말 ${fmt.num(r.base.weekend.paid + r.base.weekend.coupon)}</div>
+        <div class="sub">${r.base.usedOrganic ? '이벤트 없는 날' : '최근 전체'} ${r.base.sampleSize}일 기준 · 평일 ${fmt.num(r.base.weekday.paid + r.base.weekday.coupon)} / 휴일 ${fmt.num(r.base.weekend.paid + r.base.weekend.coupon)}</div>
       </div>`;
 
     const signals = [];
@@ -261,7 +261,7 @@
                 const applied = Store.weightOf(ev.id, rec.weight);
                 const days = r.series.filter((s) => s.forecast && s.date >= ev.startDate && s.date <= ev.endDate);
                 const contribution = days.reduce((sum, s) => {
-                  const b = util.isWeekend(s.date) ? base.weekend : base.weekday;
+                  const b = util.isRestDay(s.date) ? base.weekend : base.weekday;
                   const daily = b.paid + b.coupon;
                   return sum + daily * (applied - 1);
                 }, 0);

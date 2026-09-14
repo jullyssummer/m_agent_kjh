@@ -200,18 +200,20 @@
   /* ---------- 일자별 실적 + 이벤트 기여도 배분 ---------- */
   const days = [];
   const attribution = {};
+  const dailyAttribution = {}; // 이벤트별 일자 기여도 (데이 커브 · 증분 분석용)
   events.forEach((ev) => {
     attribution[ev.id] = {
       total: 0,
-      weekend: 0,
+      rest: 0,
       weekday: 0,
       paid: 0,
       coupon: 0,
-      paidWeekend: 0,
+      paidRest: 0,
       paidWeekday: 0,
-      couponWeekend: 0,
+      couponRest: 0,
       couponWeekday: 0,
     };
+    dailyAttribution[ev.id] = [];
   });
 
   eachDay(START, LAST_DATA_DAY).forEach((date) => {
@@ -229,7 +231,7 @@
     const row = {
       date,
       month: monthOf(date),
-      weekend: isWeekend(date),
+      rest: isRestDay(date),
       paid: Math.round(paid),
       coupon: Math.round(coupon),
       basePaid: Math.round(basePaid),
@@ -249,15 +251,23 @@
         bucket.total += gotPaid + gotCoupon;
         bucket.paid += gotPaid;
         bucket.coupon += gotCoupon;
-        if (row.weekend) {
-          bucket.weekend += gotPaid + gotCoupon;
-          bucket.paidWeekend += gotPaid;
-          bucket.couponWeekend += gotCoupon;
+        if (row.rest) {
+          bucket.rest += gotPaid + gotCoupon;
+          bucket.paidRest += gotPaid;
+          bucket.couponRest += gotCoupon;
         } else {
           bucket.weekday += gotPaid + gotCoupon;
           bucket.paidWeekday += gotPaid;
           bucket.couponWeekday += gotCoupon;
         }
+        dailyAttribution[ev.id].push({
+          date,
+          rest: row.rest,
+          paid: gotPaid,
+          coupon: gotCoupon,
+          total: gotPaid + gotCoupon,
+          baseline: row.basePaid + row.baseCoupon,
+        });
       });
     }
   });
@@ -267,13 +277,13 @@
     const bucket = attribution[ev.id];
     if (ev.status === '예정' || bucket.total < 1) {
       ev.signups = null;
-      ev.weekendSignups = null;
+      ev.restSignups = null;
       ev.weekdaySignups = null;
       ev.paidSignups = null;
       ev.couponSignups = null;
-      ev.paidWeekend = null;
+      ev.paidRest = null;
       ev.paidWeekday = null;
-      ev.couponWeekend = null;
+      ev.couponRest = null;
       ev.couponWeekday = null;
       ev.entrants = null;
       ev.prizeCount = hasRaffle(ev.type) ? pick([100, 200, 300, 500]) : null;
@@ -284,13 +294,13 @@
       return;
     }
     ev.signups = Math.round(bucket.total);
-    ev.weekendSignups = Math.round(bucket.weekend);
+    ev.restSignups = Math.round(bucket.rest);
     ev.weekdaySignups = Math.round(bucket.weekday);
     ev.paidSignups = Math.round(bucket.paid);
     ev.couponSignups = Math.round(bucket.coupon);
-    ev.paidWeekend = Math.round(bucket.paidWeekend);
+    ev.paidRest = Math.round(bucket.paidRest);
     ev.paidWeekday = Math.round(bucket.paidWeekday);
-    ev.couponWeekend = Math.round(bucket.couponWeekend);
+    ev.couponRest = Math.round(bucket.couponRest);
     ev.couponWeekday = Math.round(bucket.couponWeekday);
 
     if (hasRaffle(ev.type)) {
@@ -406,13 +416,14 @@
     const measuredEnd = ev.endDate <= asOf ? ev.endDate : asOf;
     const measured = ev.startDate <= measuredEnd ? eachDay(ev.startDate, measuredEnd) : [];
     const elapsedDays = measured.length;
-    const elapsedWeekendDays = measured.filter(isWeekend).length;
-    const elapsedWeekdayDays = elapsedDays - elapsedWeekendDays;
-    let weekendDays = 0;
+    // 휴일 = 토·일·공휴일
+    const elapsedRestDays = measured.filter(isRestDay).length;
+    const elapsedWeekdayDays = elapsedDays - elapsedRestDays;
+    let restDays = 0;
     eachDay(ev.startDate, ev.endDate).forEach((d) => {
-      if (isWeekend(d)) weekendDays += 1;
+      if (isRestDay(d)) restDays += 1;
     });
-    const weekdayDays = totalDays - weekendDays;
+    const weekdayDays = totalDays - restDays;
     const signups = ev.signups;
     const has = signups != null;
     const status = ev.endDate <= asOf ? '종료' : ev.startDate <= asOf ? '진행중' : '예정';
@@ -420,22 +431,22 @@
       ...ev,
       status,
       totalDays,
-      weekendDays,
+      restDays,
       weekdayDays,
       elapsedDays,
       inFlight: status === '진행중',
       rate: has ? signups / ev.pool : null,
       dailyAvg: has && elapsedDays ? signups / elapsedDays : null,
-      weekendAvg: has && elapsedWeekendDays ? ev.weekendSignups / elapsedWeekendDays : null,
+      restAvg: has && elapsedRestDays ? ev.restSignups / elapsedRestDays : null,
       weekdayAvg: has && elapsedWeekdayDays ? ev.weekdaySignups / elapsedWeekdayDays : null,
       dailyRate: has && elapsedDays ? signups / ev.pool / elapsedDays : null,
       paidDailyAvg: has && elapsedDays ? ev.paidSignups / elapsedDays : null,
-      paidWeekendAvg: has && elapsedWeekendDays ? ev.paidWeekend / elapsedWeekendDays : null,
+      paidRestAvg: has && elapsedRestDays ? ev.paidRest / elapsedRestDays : null,
       paidWeekdayAvg: has && elapsedWeekdayDays ? ev.paidWeekday / elapsedWeekdayDays : null,
       couponRate: has ? ev.couponSignups / ev.pool : null,
       couponDailyRate: has && elapsedDays ? ev.couponSignups / ev.pool / elapsedDays : null,
       couponDailyAvg: has && elapsedDays ? ev.couponSignups / elapsedDays : null,
-      couponWeekendAvg: has && elapsedWeekendDays ? ev.couponWeekend / elapsedWeekendDays : null,
+      couponRestAvg: has && elapsedRestDays ? ev.couponRest / elapsedRestDays : null,
       couponWeekdayAvg: has && elapsedWeekdayDays ? ev.couponWeekday / elapsedWeekdayDays : null,
       organicRatio: has && ev.paidSignups ? ev.couponSignups / ev.paidSignups : null,
       competition: ev.entrants && ev.prizeCount ? ev.entrants / ev.prizeCount : null,
@@ -448,6 +459,63 @@
       isRaffle: hasRaffle(ev.type),
       isAllPrize: hasAll(ev.type),
     };
+  }
+
+  // 이벤트 기간을 1일차·2일차로 정규화한 기여도 곡선
+  function dayCurve(eventId) {
+    return (dailyAttribution[eventId] || []).map((row, i) => ({
+      day: i + 1,
+      ...row,
+      share: null,
+    }));
+  }
+
+  // 이벤트 기간의 순증분과, 종료 직후 기준선이 꺼지는 폭(수요 당겨쓰기)
+  function incrementality(ev, tailDays = 7) {
+    const rows = dailyAttribution[ev.id] || [];
+    if (!rows.length) return null;
+    const incremental = rows.reduce((s, r) => s + r.total, 0);
+    const baseline = rows.reduce((s, r) => s + r.baseline, 0);
+
+    const tail = state.days.filter((d) => d.date > ev.endDate && d.date <= addDays(ev.endDate, tailDays));
+    const tailActual = tail.reduce((s, d) => s + d.paid + d.coupon, 0);
+    const tailBaseline = tail.reduce((s, d) => s + d.basePaid + d.baseCoupon, 0);
+    const otherEventDays = tail.filter((d) => d.eventIds && d.eventIds.length).length;
+
+    return {
+      incremental,
+      baseline,
+      liftRatio: baseline ? incremental / baseline : null,
+      tailDays: tail.length,
+      tailActual,
+      tailBaseline,
+      payback: tailBaseline ? (tailActual - tailBaseline) / tailBaseline : null,
+      tailPolluted: otherEventDays > 0, // 직후 기간에 다른 이벤트가 겹치면 해석 주의
+    };
+  }
+
+  // 전년(및 재작년) 같은 시기 이벤트. 명절이 낀 이벤트는 같은 명절 기준으로 맞춘다
+  function sameSeasonEvents(ev) {
+    const holidayNear = (event) => {
+      const span = eachDay(addDays(event.startDate, -7), addDays(event.endDate, 7));
+      const names = span.map(holidayOf).filter(Boolean);
+      const major = names.find((n) => n.includes('추석') || n.includes('설'));
+      return major ? major.replace(' 연휴', '') : null;
+    };
+    const baseHoliday = holidayNear(ev);
+    const baseMonth = Number(ev.startDate.slice(5, 7));
+    const baseYear = Number(ev.startDate.slice(0, 4));
+
+    return allEvents()
+      .filter((e) => e.signups != null && e.id !== ev.id && Number(e.startDate.slice(0, 4)) !== baseYear)
+      .map((e) => {
+        const holiday = holidayNear(e);
+        if (baseHoliday && holiday === baseHoliday) return { event: e, basis: `${baseHoliday} 기준` };
+        if (!baseHoliday && Number(e.startDate.slice(5, 7)) === baseMonth) return { event: e, basis: `${baseMonth}월 기준` };
+        return null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => (a.event.startDate < b.event.startDate ? 1 : -1));
   }
 
   function allEvents() {
@@ -556,7 +624,7 @@
       byDate.set(r.date, {
         date: r.date,
         month: monthOf(r.date),
-        weekend: isWeekend(r.date),
+        rest: isRestDay(r.date),
         paid: r.paid,
         coupon: r.coupon,
         basePaid: r.paid,
@@ -617,6 +685,9 @@
     monthStats,
     segStats,
     anomaly,
+    dayCurve,
+    incrementality,
+    sameSeasonEvents,
     seriesThrough,
     replaceDays,
     replaceEvents,
