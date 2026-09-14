@@ -28,6 +28,12 @@
   const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
   const now = () => new Date().toISOString();
 
+  const UPLOAD_KEYS = {
+    daily: (r) => r.date,
+    events: (r) => r.id,
+    seg: (r) => `${r.month}|${r.ui}|${r.segment}`,
+  };
+
   global.Store = {
     get state() {
       return state;
@@ -103,12 +109,40 @@
     memoOf(eventId) {
       return state.memos[eventId] || '';
     },
-    saveUpload(kind, rows) {
-      state.uploads[kind] = rows;
+    // 같은 키는 최신값으로 갱신, 새 키는 추가 — 매주 올린 분이 계속 쌓인다
+    mergeUpload(kind, rows, fileName) {
+      const keyOf = UPLOAD_KEYS[kind];
+      const existing = state.uploads[kind] || [];
+      const byKey = new Map(existing.map((r) => [keyOf(r), r]));
+      let added = 0;
+      let updated = 0;
+      rows.forEach((r) => {
+        if (byKey.has(keyOf(r))) updated += 1;
+        else added += 1;
+        byKey.set(keyOf(r), r);
+      });
+      state.uploads[kind] = [...byKey.values()];
+      state.realData = true;
+      state.uploadLog = [
+        { kind, file: fileName, added, updated, total: state.uploads[kind].length, at: now() },
+        ...(state.uploadLog || []),
+      ].slice(0, 20);
       save();
+      return { added, updated, total: state.uploads[kind].length };
+    },
+    uploadsOf(kind) {
+      return state.uploads[kind] || [];
+    },
+    get uploadLog() {
+      return state.uploadLog || [];
+    },
+    get isRealData() {
+      return !!state.realData;
     },
     clearUploads() {
       state.uploads = {};
+      state.uploadLog = [];
+      state.realData = false;
       save();
     },
   };

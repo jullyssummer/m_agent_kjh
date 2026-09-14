@@ -680,6 +680,20 @@
               ? `종료 후 ${inc.tailDays}일간 기준선 대비 <b>${paybackPct.toFixed(1)}%</b> 낮았습니다. 이벤트로 수요를 앞당겨 쓴 것으로 보입니다.`
               : `종료 후 ${inc.tailDays}일간 기준선 대비 ${paybackPct.toFixed(1)}%로, 눈에 띄는 수요 당겨쓰기는 없었습니다.`,
       },
+      inc.approx && {
+        k: '계산 방식',
+        v: `이벤트별 일자 데이터가 없어 <b>직전 ${inc.baselineSample || 0}일의 평상시 평균</b>을 기준선으로 잡아 근사 계산했습니다.`,
+      },
+      inc.overlapping > 0 && {
+        k: '유의사항',
+        v: `기간이 겹친 다른 이벤트가 ${inc.overlapping}건 있어, 위 순증분은 겹친 이벤트들의 합입니다.`,
+        warn: true,
+      },
+      !inc.baselineReliable && {
+        k: '유의사항',
+        v: '이벤트 직전에 이벤트 없는 날이 부족해 기준선이 불안정합니다. 증분 수치를 그대로 보고하지 마세요.',
+        warn: true,
+      },
       inc.tailPolluted && {
         k: '유의사항',
         v: '종료 직후 기간에 다른 이벤트가 겹쳐 있어 되돌림 수치는 참고용으로만 보세요.',
@@ -795,6 +809,7 @@
 
     // 초반 집중형인지 끝까지 유지형인지 앞/뒤 절반 비중으로 판정
     const curve = BTV.dayCurve(base.id);
+    const approx = curve.length && curve[0].approx;
     const half = Math.ceil(curve.length / 2);
     const front = curve.slice(0, half).reduce((s, r) => s + r[series], 0);
     const back = curve.slice(half).reduce((s, r) => s + r[series], 0);
@@ -812,6 +827,10 @@
             : frontShare <= 0.45
               ? `뒤 절반에 <b>${fmt.pct(1 - frontShare, 1)}</b>가 발생한 <b>후반 상승형</b>입니다. 기간을 늘리면 더 받을 여지가 있습니다.`
               : `앞뒤가 <b>${fmt.pct(frontShare, 1)} / ${fmt.pct(1 - frontShare, 1)}</b>로 고르게 유지되는 형태입니다.`,
+      },
+      approx && {
+        k: '계산 방식',
+        v: '이벤트 기간의 일자별 실적을 그대로 그린 값입니다. 기간이 겹친 이벤트가 있으면 서로 분리되지 않습니다.',
       },
     ]);
   }
@@ -1185,6 +1204,18 @@
 
   // 기준 이벤트에 딸린 화면들은 같이 움직인다
   function renderBaseViews() {
+    if (!currentBase()) {
+      ['compareCards', 'incrementalCards', 'cacCards'].forEach((id) => {
+        el(id).innerHTML = '';
+      });
+      ['compareComment', 'incrementalComment', 'seasonComment', 'curveComment', 'cacComment'].forEach((id) =>
+        paintComment(id, [{ k: '데이터 없음', v: '캠페인 CSV를 올리면 분석이 시작됩니다.', warn: true }])
+      );
+      ['compareTable', 'seasonTable', 'cacTable'].forEach((id) => {
+        el(id).innerHTML = '';
+      });
+      return;
+    }
     renderCompare();
     renderIncremental();
     renderSeason();

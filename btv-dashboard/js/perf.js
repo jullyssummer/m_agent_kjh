@@ -42,29 +42,35 @@
     const needDaily = remainDays > 0 ? Math.max(0, gap) / remainDays : 0;
     const paceCls = progress >= s.elapsedRatio ? 'good' : 'warn';
 
+    // 목표를 입력하지 않은 달(주로 과거 월)은 달성률·갭을 계산하지 않는다
+    const hasTarget = targetTotal > 0;
     el('perfKpis').innerHTML = `
       <div class="kpi">
         <div class="label">유료 신규 (누적)</div>
         <div class="value">${fmt.num(s.paid)}</div>
-        <div class="sub">목표 ${fmt.num(target.paid)} · 달성률 ${fmt.pct(target.paid ? s.paid / target.paid : 0, 1)}</div>
+        <div class="sub">${hasTarget ? `목표 ${fmt.num(target.paid)} · 달성률 ${fmt.pct(target.paid ? s.paid / target.paid : 0, 1)}` : '목표 미입력'}</div>
         <div class="bar"><span style="width:${Math.min(100, target.paid ? (s.paid / target.paid) * 100 : 0)}%"></span></div>
       </div>
       <div class="kpi">
         <div class="label">쿠폰 가입 (누적)</div>
         <div class="value">${fmt.num(s.coupon)}</div>
-        <div class="sub">목표 ${fmt.num(target.coupon)} · 달성률 ${fmt.pct(target.coupon ? s.coupon / target.coupon : 0, 1)}</div>
+        <div class="sub">${hasTarget ? `목표 ${fmt.num(target.coupon)} · 달성률 ${fmt.pct(target.coupon ? s.coupon / target.coupon : 0, 1)}` : '목표 미입력'}</div>
         <div class="bar"><span style="width:${Math.min(100, target.coupon ? (s.coupon / target.coupon) * 100 : 0)}%;background:var(--coupon)"></span></div>
       </div>
       <div class="kpi">
         <div class="label">목표 대비 진척률</div>
-        <div class="value">${fmt.pct(progress, 1)}</div>
-        <div class="sub ${paceCls}">기간 경과율 ${fmt.pct(s.elapsedRatio, 1)} 대비 ${progress >= s.elapsedRatio ? '+' : ''}${((progress - s.elapsedRatio) * 100).toFixed(1)}%p</div>
-        <div class="bar"><span style="width:${Math.min(100, progress * 100)}%"></span></div>
+        <div class="value">${hasTarget ? fmt.pct(progress, 1) : '-'}</div>
+        <div class="sub ${hasTarget ? paceCls : ''}">${
+          hasTarget
+            ? `기간 경과율 ${fmt.pct(s.elapsedRatio, 1)} 대비 ${progress >= s.elapsedRatio ? '+' : ''}${((progress - s.elapsedRatio) * 100).toFixed(1)}%p`
+            : '위에서 월 목표를 입력하면 계산됩니다'
+        }</div>
+        <div class="bar"><span style="width:${hasTarget ? Math.min(100, progress * 100) : 0}%"></span></div>
       </div>
       <div class="kpi">
         <div class="label">잔여 갭</div>
-        <div class="value">${gap > 0 ? fmt.num(gap) : '목표 달성'}</div>
-        <div class="sub">${remainDays > 0 ? `잔여 ${remainDays}일 · 필요 일평균 ${fmt.num(needDaily)}건` : '집계 완료'}</div>
+        <div class="value">${!hasTarget ? '-' : gap > 0 ? fmt.num(gap) : '목표 달성'}</div>
+        <div class="sub">${!hasTarget ? '목표 미입력' : remainDays > 0 ? `잔여 ${remainDays}일 · 필요 일평균 ${fmt.num(needDaily)}건` : '집계 완료'}</div>
       </div>
       <div class="kpi">
         <div class="label">일평균 가입자</div>

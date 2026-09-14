@@ -391,6 +391,42 @@
   /* ---------- 조회 · 파생 지표 ---------- */
   const state = { days, events, segMonthly };
 
+  // 실데이터를 올리면 더미를 비우고 업로드분만 쓴다 (섞이면 해석이 불가능해진다)
+  function clearSeed() {
+    state.days = [];
+    state.events = [];
+    state.segMonthly = [];
+    months.length = 0;
+    Object.keys(kpiTargets).forEach((m) => delete kpiTargets[m]);
+  }
+
+  // 업로드 데이터에는 이벤트 진행일 표시가 없어 이벤트 목록으로 다시 채운다
+  function recomputeEventDays() {
+    state.days.forEach((d) => {
+      d.eventIds = state.events.filter((e) => e.startDate <= d.date && d.date <= e.endDate).map((e) => e.id);
+    });
+  }
+
+  // 이벤트 직전 28일 중 이벤트가 없던 날로 평상시 기준선을 추정한다
+  function baselineBefore(date) {
+    const prior = state.days.filter((d) => d.date < date).slice(-28);
+    if (!prior.length) return null;
+    const organic = prior.filter((d) => !d.eventIds || !d.eventIds.length);
+    const source = organic.length >= 3 ? organic : prior;
+    const avg = (list) => (list.length ? list.reduce((s, d) => s + d.paid + d.coupon, 0) / list.length : null);
+    const restAvg = avg(source.filter((d) => d.rest));
+    const weekdayAvg = avg(source.filter((d) => !d.rest));
+    const overall = avg(source);
+    return {
+      rest: restAvg != null ? restAvg : overall * 1.25,
+      weekday: weekdayAvg != null ? weekdayAvg : overall,
+      sample: source.length,
+      organicDays: organic.length,
+      // 직전 데이터가 짧거나 이벤트 없는 날이 거의 없으면 기준선을 믿을 수 없다
+      reliable: source.length >= 7 && organic.length >= 3,
+    };
+  }
+
   function dayRows(month) {
     return state.days.filter((d) => !month || d.month === month);
   }
@@ -461,26 +497,59 @@
     };
   }
 
-  // 이벤트 기간을 1일차·2일차로 정규화한 기여도 곡선
+  // 이벤트별 일자 실적은 따로 받지 않는다.
+  // 더미에는 생성 시 계산해 둔 기여도가 있고, 실데이터는 일자별 총합에서 추정 기준선을 빼 근사한다.
+  function eventDailyRows(ev) {
+    const attributed = dailyAttribution[ev.id];
+    if (attributed && attributed.length) {
+      return attributed.map((r) => ({ ...r, incremental: r.total, approx: false }));
+    }
+    const base = baselineBefore(ev.startDate);
+    return state.days
+      .filter((d) => d.date >= ev.startDate && d.date <= ev.endDate)
+      .map((d) => {
+        const baseline = base ? (d.rest ? base.rest : base.weekday) : 0;
+        const total = d.paid + d.coupon;
+        return {
+          date: d.date,
+          rest: d.rest,
+          paid: d.paid,
+          coupon: d.coupon,
+          total,
+          baseline,
+          incremental: total - baseline,
+          approx: true,
+        };
+      });
+  }
+
+  // 이벤트 기간을 1일차·2일차로 정규화한 곡선
   function dayCurve(eventId) {
-    return (dailyAttribution[eventId] || []).map((row, i) => ({
-      day: i + 1,
-      ...row,
-      share: null,
-    }));
+    const ev = state.events.find((e) => e.id === eventId);
+    if (!ev) return [];
+    return eventDailyRows(ev).map((row, i) => ({ day: i + 1, ...row }));
   }
 
   // 이벤트 기간의 순증분과, 종료 직후 기준선이 꺼지는 폭(수요 당겨쓰기)
   function incrementality(ev, tailDays = 7) {
-    const rows = dailyAttribution[ev.id] || [];
+    const rows = eventDailyRows(ev);
     if (!rows.length) return null;
-    const incremental = rows.reduce((s, r) => s + r.total, 0);
+    const approx = rows[0].approx;
+    const base = approx ? baselineBefore(ev.startDate) : null;
+    const incremental = rows.reduce((s, r) => s + r.incremental, 0);
     const baseline = rows.reduce((s, r) => s + r.baseline, 0);
 
     const tail = state.days.filter((d) => d.date > ev.endDate && d.date <= addDays(ev.endDate, tailDays));
+    const tailBase = approx ? base : null;
     const tailActual = tail.reduce((s, d) => s + d.paid + d.coupon, 0);
-    const tailBaseline = tail.reduce((s, d) => s + d.basePaid + d.baseCoupon, 0);
+    const tailBaseline = tail.reduce(
+      (s, d) => s + (tailBase ? (d.rest ? tailBase.rest : tailBase.weekday) : d.basePaid + d.baseCoupon),
+      0
+    );
     const otherEventDays = tail.filter((d) => d.eventIds && d.eventIds.length).length;
+    const overlapping = state.events.filter(
+      (e) => e.id !== ev.id && e.startDate <= ev.endDate && e.endDate >= ev.startDate
+    ).length;
 
     return {
       incremental,
@@ -491,6 +560,10 @@
       tailBaseline,
       payback: tailBaseline ? (tailActual - tailBaseline) / tailBaseline : null,
       tailPolluted: otherEventDays > 0, // 직후 기간에 다른 이벤트가 겹치면 해석 주의
+      overlapping, // 기간이 겹친 다른 이벤트 수 — 근사 계산에서는 분리가 불가능
+      approx,
+      baselineReliable: !approx || (base ? base.reliable : false),
+      baselineSample: base ? base.sample : null,
     };
   }
 
@@ -645,6 +718,14 @@
       byId.set(r.id, { ...(byId.get(r.id) || {}), ...r });
     });
     state.events = Array.from(byId.values()).sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
+    recomputeEventDays();
+  }
+
+  function replaceSegments(rows) {
+    const key = (r) => `${r.month}|${r.ui}|${r.segment}`;
+    const byKey = new Map(state.segMonthly.map((r) => [key(r), r]));
+    rows.forEach((r) => byKey.set(key(r), r));
+    state.segMonthly = Array.from(byKey.values());
   }
 
   const fmt = {
@@ -689,6 +770,9 @@
     incrementality,
     sameSeasonEvents,
     seriesThrough,
+    clearSeed,
+    replaceSegments,
+    recomputeEventDays,
     replaceDays,
     replaceEvents,
     util: {
