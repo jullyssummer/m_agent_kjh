@@ -33,6 +33,8 @@
     events: (r) => r.id,
     seg: (r) => `${r.month}|${r.ui}|${r.segment}`,
     prizes: (r) => `${r.event}|${r.rank}`,
+    couponDaily: (r) => `${r.date}|${r.policyId}`,
+    couponAlloc: (r) => `${r.date || ''}|${r.policyId}`,
   };
 
   global.Store = {

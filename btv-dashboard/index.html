@@ -316,6 +316,7 @@
             <label>이벤트 종류<select id="ef-type"></select></label>
             <label>할인율 (%)<input type="number" id="ef-discount" min="0" max="100" value="0"></label>
             <label>쿠폰 정책명<input type="text" id="ef-policy"></label>
+            <label>쿠폰 정책번호 <span class="hint">쉼표로 여러 개</span><input type="text" id="ef-policyIds" placeholder="CP1001, CP1002"></label>
           </div>
 
           <p class="form-section">기간 <span class="hint">끊어서 진행했으면 구간을 추가하세요</span>
@@ -323,9 +324,9 @@
           </p>
           <div id="ef-periods"></div>
 
-          <p class="form-section">실적</p>
+          <p class="form-section">실적 <span class="hint">비워두면 업로드한 raw에서 자동 집계합니다</span></p>
           <div class="form-grid">
-            <label>모수 *<input type="number" id="ef-pool" min="0" required></label>
+            <label>모수 <span class="hint">비우면 쿠폰 할당에서 집계</span><input type="number" id="ef-pool" min="0"></label>
             <label>유료 가입자 수<input type="number" id="ef-paid" min="0"></label>
             <label>쿠폰 가입자 수<input type="number" id="ef-coupon" min="0"></label>
             <label>응모자 수<input type="number" id="ef-entrants" min="0"></label>

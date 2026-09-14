@@ -435,13 +435,95 @@
   });
 
   /* ---------- 조회 · 파생 지표 ---------- */
-  const state = { days, events, segMonthly };
+  const state = { days, events, segMonthly, couponDaily: [], couponAlloc: [] };
+
+  // raw(일별 쿠폰 가입자)를 쿠폰 정책번호로 캠페인에 이어 붙이고, 유료는 기간으로 집계한다.
+  // 사용자가 엑셀에서 미리 합계를 낼 필요가 없게 하려는 것.
+  function rollupPerformance() {
+    const coupons = state.couponDaily;
+    // 일자별 쿠폰 합계를 시계열에 반영 (쿠폰 raw가 있으면 그쪽이 기준)
+    if (coupons.length) {
+      const byDate = new Map();
+      coupons.forEach((r) => byDate.set(r.date, (byDate.get(r.date) || 0) + r.count));
+      state.days.forEach((d) => {
+        if (byDate.has(d.date)) {
+          d.coupon = byDate.get(d.date);
+          d.baseCoupon = d.coupon;
+        }
+      });
+    }
+
+    state.events.forEach((ev) => {
+      if (!ev.autoRollup) return;
+      const policies = ev.couponPolicyIds || [];
+      const inRange = (date) => covers(ev, date);
+
+      const paidRows = state.days.filter((d) => inRange(d.date));
+      const paid = paidRows.reduce((s, d) => s + d.paid, 0);
+      const paidRest = paidRows.filter((d) => d.rest).reduce((s, d) => s + d.paid, 0);
+
+      const couponRows = policies.length
+        ? coupons.filter((r) => policies.includes(r.policyId) && inRange(r.date))
+        : [];
+      const coupon = couponRows.reduce((s, r) => s + r.count, 0);
+      const couponRest = couponRows.filter((r) => isRestDay(r.date)).reduce((s, r) => s + r.count, 0);
+
+      // 모수 = 그 캠페인 정책번호로 할당된 수 (일자가 있는 할당 내역이면 기간으로도 자른다)
+      if (ev.autoPool && policies.length && state.couponAlloc.length) {
+        const allocRows = state.couponAlloc.filter(
+          (r) => policies.includes(r.policyId) && (!r.date || inRange(r.date))
+        );
+        if (allocRows.length) {
+          ev.pool = allocRows.reduce((s2, r) => s2 + r.count, 0);
+          ev.poolMatched = allocRows.length;
+        }
+      }
+
+      // 매칭되는 raw가 하나도 없으면 값을 채우지 않는다 (0으로 덮어써 착시를 만들지 않도록)
+      if (!paidRows.length && !couponRows.length) return;
+      ev.paidSignups = paid;
+      ev.couponSignups = coupon;
+      ev.signups = paid + coupon;
+      ev.paidRest = paidRest;
+      ev.paidWeekday = paid - paidRest;
+      ev.couponRest = couponRest;
+      ev.couponWeekday = coupon - couponRest;
+      ev.restSignups = paidRest + couponRest;
+      ev.weekdaySignups = ev.signups - ev.restSignups;
+      ev.couponMatched = couponRows.length;
+    });
+  }
+
+  function replaceCouponAlloc(rows) {
+    const key = (r) => `${r.date || ''}|${r.policyId}`;
+    const byKey = new Map(state.couponAlloc.map((r) => [key(r), r]));
+    rows.forEach((r) => byKey.set(key(r), r));
+    state.couponAlloc = Array.from(byKey.values());
+  }
+
+  function replaceCouponDaily(rows) {
+    const key = (r) => `${r.date}|${r.policyId}`;
+    const byKey = new Map(state.couponDaily.map((r) => [key(r), r]));
+    rows.forEach((r) => byKey.set(key(r), r));
+    state.couponDaily = Array.from(byKey.values()).sort((a, b) => (a.date < b.date ? -1 : 1));
+    state.couponDaily.forEach((r) => {
+      if (!months.includes(monthOf(r.date))) months.push(monthOf(r.date));
+    });
+    months.sort();
+  }
+
+  // 같은 기간에 다른 캠페인이 겹치면 유료 가입자가 양쪽에 함께 잡힌다
+  function overlappingPaid(ev) {
+    return state.events.filter((e) => e.id !== ev.id && e.autoRollup && overlapsRange(e, ev.startDate, ev.endDate)).length;
+  }
 
   // 실데이터를 올리면 더미를 비우고 업로드분만 쓴다 (섞이면 해석이 불가능해진다)
   function clearSeed() {
     state.days = [];
     state.events = [];
     state.segMonthly = [];
+    state.couponDaily = [];
+    state.couponAlloc = [];
     months.length = 0;
     Object.keys(kpiTargets).forEach((m) => delete kpiTargets[m]);
   }
@@ -560,6 +642,11 @@
       couponWeekdayAvg: has && elapsedWeekdayDays ? ev.couponWeekday / elapsedWeekdayDays : null,
       organicRatio: has && ev.paidSignups ? ev.couponSignups / ev.paidSignups : null,
       prizes: prizeRows,
+      autoRollup: !!ev.autoRollup,
+      couponPolicyIds: ev.couponPolicyIds || [],
+      couponMatched: ev.couponMatched || 0,
+      poolMatched: ev.poolMatched || 0,
+      autoPool: !!ev.autoPool,
       prizeTiers: prizes.length,
       prizeMethod:
         ev.prizeMethod ||
@@ -934,6 +1021,10 @@
     seriesThrough,
     clearSeed,
     replaceSegments,
+    replaceCouponDaily,
+    replaceCouponAlloc,
+    rollupPerformance,
+    overlappingPaid,
     recomputeEventDays,
     replaceDays,
     replaceEvents,

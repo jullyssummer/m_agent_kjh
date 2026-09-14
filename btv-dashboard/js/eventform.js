@@ -57,6 +57,7 @@
     el('ef-name').value = ev ? ev.name : '';
     el('ef-discount').value = ev ? ev.discountRate : 0;
     el('ef-policy').value = ev && ev.couponPolicy !== '-' ? ev.couponPolicy : '';
+    el('ef-policyIds').value = ev && ev.couponPolicyIds ? ev.couponPolicyIds.join(', ') : '';
     el('ef-pool').value = ev ? ev.pool : '';
     el('ef-paid').value = ev && ev.paidSignups != null ? ev.paidSignups : '';
     el('ef-coupon').value = ev && ev.couponSignups != null ? ev.couponSignups : '';
@@ -127,6 +128,8 @@
       purpose: el('ef-purpose').value,
       type,
       couponPolicy: el('ef-policy').value.trim() || '-',
+      couponPolicyIds: el('ef-policyIds').value.split(/[,;|]/).map((v) => v.trim()).filter(Boolean),
+      autoRollup: paid == null && coupon == null,
       prizeMethod:
         type.includes('전원경품') && type.includes('추첨경품')
           ? '전원+추첨'
@@ -143,6 +146,7 @@
       endDate: periods.length ? periods[periods.length - 1].endDate : '',
       periods,
       pool: Number(el('ef-pool').value) || 0,
+      autoPool: el('ef-pool').value === '',
       paidSignups: paid,
       couponSignups: coupon,
       signups,
@@ -163,7 +167,7 @@
     if (!row.name) return fail('이벤트명을 입력해주세요.');
     if (!row.periods.length) return fail('기간을 최소 한 구간 입력해주세요.');
     if (row.periods.some((p) => p.startDate > p.endDate)) return fail('종료일이 시작일보다 빠른 구간이 있습니다.');
-    if (!row.pool) return fail('모수를 입력해주세요.');
+    if (!row.pool && !row.autoPool) return fail('모수를 입력해주세요.');
 
     row.status = row.endDate <= BTV.LAST_DATA_DAY ? '종료' : row.startDate <= BTV.LAST_DATA_DAY ? '진행중' : '예정';
     App.saveManualEvent(row);

@@ -35,7 +35,8 @@
 
   const DAILY_ALIAS = {
     date: ['date', '일자', '날짜'],
-    paid: ['paid', '유료신규', '유료 신규', '유료'],
+    paid: ['paid', '유료 가입자 수', '유료가입자수', '유료신규', '유료 신규', '유료'],
+    // 쿠폰은 선택 — 예전 정리 양식에만 있고, raw로 올리면 쿠폰 파일이 대신한다
     coupon: ['coupon', '쿠폰가입', '쿠폰 가입', '쿠폰'],
   };
   const SEG_ALIAS = {
@@ -44,6 +45,18 @@
     segment: ['seg', 'segment', '세그먼트'],
     allocated: ['allocated', '할당'],
     used: ['used', '사용'],
+  };
+  const COUPON_ALIAS = {
+    date: ['date', '일자', '날짜'],
+    policyId: ['policy_id', '쿠폰정책번호', '쿠폰 정책번호', '정책번호'],
+    policyName: ['policy_name', '쿠폰정책명', '쿠폰 정책명'],
+    count: ['count', 'signups', '가입자수', '가입자 수'],
+  };
+  const ALLOC_ALIAS = {
+    date: ['date', '일자', '날짜'],
+    policyId: ['policy_id', '쿠폰정책번호', '쿠폰 정책번호', '정책번호'],
+    policyName: ['policy_name', '쿠폰정책명', '쿠폰 정책명'],
+    count: ['allocated', '할당 수', '할당수', '할당', '대상자 수', '대상자수'],
   };
   const PRIZE_ALIAS = {
     event: ['event', 'event_name', '이벤트명'],
@@ -64,14 +77,15 @@
     name: ['name', 'event_name', '이벤트명'],
     purpose: ['purpose', '구분', '목적'],
     couponPolicy: ['coupon_policy', '쿠폰정책명', '쿠폰 정책명'],
+    couponPolicyIds: ['policy_id', '쿠폰정책번호', '쿠폰 정책번호', '정책번호'],
     paidSignups: ['paid_signups', '유료가입자수', '유료 가입자 수'],
     couponSignups: ['coupon_signups', '쿠폰가입자수', '쿠폰 가입자 수'],
+    signups: ['signups', '가입자수', '가입자 수'],
     type: ['type', '이벤트타입', '타입', '이벤트종류', '이벤트 종류'],
     discountRate: ['discount_rate', '할인율'],
     startDate: ['start_date', '시작일'],
     endDate: ['end_date', '종료일'],
     pool: ['pool', '모수'],
-    signups: ['signups', '가입자수', '가입자 수'],
   };
 
   const val = (row, aliases) => {
@@ -79,7 +93,10 @@
     return key ? row[key] : '';
   };
   const toNum = (v) => {
-    const n = Number(String(v).replace(/[,%원\s]/g, ''));
+    const cleaned = String(v).replace(/[,%원\s]/g, '');
+    // 빈 칸은 0이 아니라 '값 없음'이다 (성과를 비워 두면 raw에서 집계하도록)
+    if (cleaned === '') return null;
+    const n = Number(cleaned);
     return Number.isNaN(n) ? null : n;
   };
   const toDate = (v) => {
@@ -95,6 +112,8 @@
     const named = has(EVENT_ALIAS.name) || has(EVENT_ALIAS.id);
     const dated = has(DAILY_ALIAS.date);
     if (has(SEG_ALIAS.segment) && has(SEG_ALIAS.allocated)) return 'seg';
+    if (has(ALLOC_ALIAS.policyId) && has(ALLOC_ALIAS.count)) return 'couponAlloc';
+    if (dated && has(COUPON_ALIAS.policyId)) return 'couponDaily';
     if (named && has(PRIZE_ALIAS.rank) && has(PRIZE_ALIAS.count)) return 'prizes';
     if (named) return 'events';
     if (dated) return 'daily';
@@ -116,6 +135,28 @@
         };
       })
       .filter((r) => r && r.segment);
+  }
+
+  function buildCouponAlloc(rows) {
+    return rows
+      .map((r) => ({
+        date: toDate(val(r, ALLOC_ALIAS.date)) || '',
+        policyId: String(val(r, ALLOC_ALIAS.policyId)).trim(),
+        policyName: val(r, ALLOC_ALIAS.policyName) || '',
+        count: toNum(val(r, ALLOC_ALIAS.count)) || 0,
+      }))
+      .filter((r) => r.policyId && r.count);
+  }
+
+  function buildCouponDaily(rows) {
+    return rows
+      .map((r) => ({
+        date: toDate(val(r, COUPON_ALIAS.date)),
+        policyId: String(val(r, COUPON_ALIAS.policyId)).trim(),
+        policyName: val(r, COUPON_ALIAS.policyName) || '',
+        count: toNum(val(r, COUPON_ALIAS.count)) || 0,
+      }))
+      .filter((r) => r.date && r.policyId);
   }
 
   function buildPrizes(rows) {
@@ -170,10 +211,13 @@
       prev.startDate = prev.periods[0].startDate;
       prev.endDate = prev.periods[prev.periods.length - 1].endDate;
       // 실적·예산은 구간별로 쌓이는 값이라 더하고, 모수는 같은 대상일 수 있어 최댓값을 쓴다
-      ['signups', 'paidSignups', 'couponSignups', 'restSignups', 'weekdaySignups'].forEach((k) => {
-        if (row[k] == null) return;
-        prev[k] = (prev[k] || 0) + row[k];
-      });
+      prev.couponPolicyIds = [...new Set([...(prev.couponPolicyIds || []), ...(row.couponPolicyIds || [])])];
+      if (!prev.autoRollup) {
+        ['signups', 'paidSignups', 'couponSignups', 'restSignups', 'weekdaySignups'].forEach((k) => {
+          if (row[k] == null) return;
+          prev[k] = (prev[k] || 0) + row[k];
+        });
+      }
       prev.pool = Math.max(prev.pool || 0, row.pool || 0);
       prev.status = prev.endDate <= BTV.LAST_DATA_DAY ? '종료' : prev.startDate <= BTV.LAST_DATA_DAY ? '진행중' : '예정';
     });
@@ -187,14 +231,15 @@
         const startDate = toDate(val(r, EVENT_ALIAS.startDate));
         const endDate = toDate(val(r, EVENT_ALIAS.endDate));
         if (!startDate || !endDate) return null;
-        // 유료·쿠폰을 따로 주면 합계를 거기서 만든다
+        // 정리된 양식(성과 포함)과 raw 기반(성과 없음)을 모두 받는다
         const paid = toNum(val(r, EVENT_ALIAS.paidSignups));
         const coupon = toNum(val(r, EVENT_ALIAS.couponSignups));
-        const signups = paid != null || coupon != null ? (paid || 0) + (coupon || 0) : toNum(val(r, EVENT_ALIAS.signups));
+        const total = toNum(val(r, EVENT_ALIAS.signups));
+        const given = paid != null || coupon != null || total != null;
+        const signups = given ? (paid != null || coupon != null ? (paid || 0) + (coupon || 0) : total) : null;
         const dates = BTV.util.eachDay(startDate, endDate);
         const restDays = dates.filter(BTV.util.isRestDay).length;
         const weekdayDays = dates.length - restDays;
-        // 휴일/평일 분해값이 없으면 휴일 가중 1.25로 배분
         const restUnits = restDays * 1.25;
         const share = restUnits + weekdayDays;
         return {
@@ -206,12 +251,20 @@
           endDate,
           purpose: val(r, EVENT_ALIAS.purpose) || '-',
           couponPolicy: val(r, EVENT_ALIAS.couponPolicy) || '-',
-          paidSignups: toNum(val(r, EVENT_ALIAS.paidSignups)),
-          couponSignups: toNum(val(r, EVENT_ALIAS.couponSignups)),
-          pool: toNum(val(r, EVENT_ALIAS.pool)) || 0,
+          // 성과는 raw에서 채운다. 정책번호는 쉼표로 여러 개 적을 수 있다.
+          couponPolicyIds: String(val(r, EVENT_ALIAS.couponPolicyIds) || '')
+            .split(/[,;|]/)
+            .map((v) => v.trim())
+            .filter(Boolean),
+          // 성과를 직접 적어 올린 건은 그 값을 유지하고, 비어 있으면 raw에서 채운다
+          autoRollup: !given,
+          paidSignups: paid,
+          couponSignups: coupon,
           signups,
-          restSignups: signups != null && share ? Math.round((signups * restUnits) / share) : null,
-          weekdaySignups: signups != null && share ? Math.round((signups * weekdayDays) / share) : null,
+          restSignups: given && share ? Math.round((signups * restUnits) / share) : null,
+          weekdaySignups: given && share ? Math.round((signups * weekdayDays) / share) : null,
+          pool: toNum(val(r, EVENT_ALIAS.pool)) || 0,
+          autoPool: toNum(val(r, EVENT_ALIAS.pool)) == null,
           status: endDate <= BTV.LAST_DATA_DAY ? '종료' : startDate <= BTV.LAST_DATA_DAY ? '진행중' : '예정',
         };
       })
@@ -232,8 +285,30 @@
     const daily = Store.uploadsOf('daily').slice().sort((a, b) => (a.date < b.date ? -1 : 1));
     if (daily.length) {
       files.push([
-        `btv_01_일자별실적_${stamp}.csv`,
-        csvOf(['일자', '유료신규', '쿠폰가입'], daily.map((r) => [r.date, r.paid, r.coupon])),
+        `btv_01_일별유료가입자_${stamp}.csv`,
+        csvOf(['일자', '유료 가입자 수'], daily.map((r) => [r.date, r.paid])),
+      ]);
+    }
+
+    const couponDaily = Store.uploadsOf('couponDaily').slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+    if (couponDaily.length) {
+      files.push([
+        `btv_02_일별쿠폰가입자_${stamp}.csv`,
+        csvOf(
+          ['일자', '쿠폰 정책번호', '쿠폰 정책명', '가입자 수'],
+          couponDaily.map((r) => [r.date, r.policyId, r.policyName, r.count])
+        ),
+      ]);
+    }
+
+    const alloc = Store.uploadsOf('couponAlloc');
+    if (alloc.length) {
+      files.push([
+        `btv_03_쿠폰할당내역_${stamp}.csv`,
+        csvOf(
+          ['일자', '쿠폰 정책번호', '쿠폰 정책명', '할당 수'],
+          alloc.map((r) => [r.date, r.policyId, r.policyName, r.count])
+        ),
       ]);
     }
 
@@ -247,17 +322,16 @@
           e.type,
           e.discountRate,
           e.couponPolicy,
+          (e.couponPolicyIds || []).join(','),
           p.startDate,
           p.endDate,
           i === 0 ? e.pool : '',
-          i === 0 ? e.paidSignups : '',
-          i === 0 ? e.couponSignups : '',
         ])
       );
       files.push([
-        `btv_02_캠페인_${stamp}.csv`,
+        `btv_04_캠페인정보_${stamp}.csv`,
         csvOf(
-          ['이벤트명', '구분', '이벤트 종류', '할인율', '쿠폰 정책명', '시작일', '종료일', '모수', '유료 가입자 수', '쿠폰 가입자 수'],
+          ['이벤트명', '구분', '이벤트 종류', '할인율', '쿠폰 정책명', '쿠폰 정책번호', '시작일', '종료일', '모수'],
           rows
         ),
       ]);
@@ -266,7 +340,7 @@
     const seg = Store.uploadsOf('seg').slice().sort((a, b) => (a.month < b.month ? -1 : 1));
     if (seg.length) {
       files.push([
-        `btv_03_Seg별실적_${stamp}.csv`,
+        `btv_06_Seg별실적_${stamp}.csv`,
         csvOf(['월', 'UI구분', 'SEG', '할당', '사용'], seg.map((r) => [r.month, r.ui, r.segment, r.allocated, r.used])),
       ]);
     }
@@ -275,7 +349,7 @@
     if (prizes.length) {
       const nameOf = new Map(Store.uploadsOf('events').map((e) => [e.id, e.name]));
       files.push([
-        `btv_04_경품_${stamp}.csv`,
+        `btv_05_경품_${stamp}.csv`,
         csvOf(
           ['이벤트명', '등급', '경품 종류', '경품 유형', '경품 단가', '경품 수량', '당첨자 선정 방식', '응모자 수', '당첨자 수', '실수령자 수', '경품 구매비', '실예산'],
           prizes.map((r) => [
@@ -328,21 +402,24 @@
     Compare.render();
   }
 
-  const KIND_LABEL = { daily: '일자별 실적', events: '캠페인', seg: 'Seg.별 실적', prizes: '경품' };
+  const KIND_LABEL = { daily: '일별 유료 가입자', couponDaily: '일별 쿠폰 가입자', couponAlloc: '쿠폰 할당 내역', events: '캠페인 정보', seg: 'Seg.별 실적', prizes: '경품' };
 
   // 저장된 업로드를 순서대로 다시 적용한다 (캠페인이 있어야 이벤트별 일자를 붙일 수 있다)
   function applyStored() {
     if (!Store.isRealData) return false;
     BTV.clearSeed();
-    ['daily', 'events', 'seg', 'prizes'].forEach((kind) => {
+    ['daily', 'couponDaily', 'couponAlloc', 'events', 'seg', 'prizes'].forEach((kind) => {
       const rows = Store.uploadsOf(kind);
       if (!rows.length) return;
       if (kind === 'daily') BTV.replaceDays(rows);
       if (kind === 'events') BTV.replaceEvents(rows);
       if (kind === 'seg') BTV.replaceSegments(rows);
+      if (kind === 'couponDaily') BTV.replaceCouponDaily(rows);
+      if (kind === 'couponAlloc') BTV.replaceCouponAlloc(rows);
       if (kind === 'prizes') BTV.replacePrizes(rows);
     });
     BTV.recomputeEventDays();
+    BTV.rollupPerformance();
     return true;
   }
 
@@ -390,7 +467,7 @@
         note('⚠ 인식할 수 없는 형식입니다. "샘플 양식"의 컬럼명을 확인해주세요.');
         return;
       }
-      const builders = { daily: buildDaily, events: buildEvents, seg: buildSeg, prizes: buildPrizes };
+      const builders = { daily: buildDaily, couponDaily: buildCouponDaily, couponAlloc: buildCouponAlloc, events: buildEvents, seg: buildSeg, prizes: buildPrizes };
       const built = builders[kind](rows);
       if (!built.length) {
         note('⚠ 읽을 수 있는 데이터 행이 없습니다.');
@@ -434,23 +511,39 @@
     '2026-09,541 이상,PPM 유료,90000,764',
     '2026-09,540 이하,신규가입,80000,747',
   ].join('\n');
-  const DAILY_SAMPLE = ['일자,유료신규,쿠폰가입', '2026-09-01,412,187', '2026-09-02,388,171', '2026-09-03,401,180'].join('\n');
+  // 쿠폰 컬럼은 선택 — 예전 정리 양식(일자, 유료신규, 쿠폰가입)도 그대로 읽힌다
+  const DAILY_SAMPLE = ['일자,유료 가입자 수', '2026-09-01,412', '2026-09-02,388', '2026-09-03,401'].join('\n');
+  const COUPON_SAMPLE = [
+    '일자,쿠폰 정책번호,쿠폰 정책명,가입자 수',
+    '2026-09-01,CP1001,쿠폰 A형,120',
+    '2026-09-01,CP1002,쿠폰 B형,67',
+    '2026-09-02,CP1001,쿠폰 A형,131',
+  ].join('\n');
   const EVENT_SAMPLE = [
-    '이벤트명,구분,이벤트 종류,할인율,쿠폰 정책명,시작일,종료일,모수,유료 가입자 수,쿠폰 가입자 수',
-    '9월 추석 연휴 특가,유료 신규,할인+추첨경품,30,쿠폰 A형,2026-09-05,2026-09-14,120000,2560,1280',
-    '9월 가을맞이 프로모션,유료+무료,할인+전원경품,20,쿠폰 B형,2026-09-18,2026-09-24,95000,1480,730',
+    '이벤트명,구분,이벤트 종류,할인율,쿠폰 정책명,쿠폰 정책번호,시작일,종료일,모수',
+    '9월 추석 연휴 특가,유료 신규,할인+추첨경품,30,쿠폰 A형,CP1001,2026-09-05,2026-09-14,120000',
+    '9월 가을맞이 프로모션,유료+무료,할인+전원경품,20,쿠폰 B형,"CP1002,CP1003",2026-09-18,2026-09-24,95000',
+  ].join('\n');
+
+  const ALLOC_SAMPLE = [
+    '쿠폰 정책번호,쿠폰 정책명,할당 수',
+    'CP1001,쿠폰 A형,120000',
+    'CP1002,쿠폰 B형,95000',
+    'CP1003,쿠폰 C형,40000',
   ].join('\n');
 
   const SAMPLES = {
-    daily: { file: 'btv_01_일자별실적_양식.csv', content: DAILY_SAMPLE },
-    events: { file: 'btv_02_캠페인_양식.csv', content: EVENT_SAMPLE },
-    seg: { file: 'btv_03_Seg별실적_양식.csv', content: SEG_SAMPLE },
-    prizes: { file: 'btv_04_경품_양식.csv', content: PRIZE_SAMPLE },
+    daily: { file: 'btv_01_일별유료가입자_양식.csv', content: DAILY_SAMPLE },
+    couponDaily: { file: 'btv_02_일별쿠폰가입자_양식.csv', content: COUPON_SAMPLE },
+    couponAlloc: { file: 'btv_03_쿠폰할당내역_양식.csv', content: ALLOC_SAMPLE },
+    events: { file: 'btv_04_캠페인정보_양식.csv', content: EVENT_SAMPLE },
+    seg: { file: 'btv_06_Seg별실적_양식.csv', content: SEG_SAMPLE },
+    prizes: { file: 'btv_05_경품_양식.csv', content: PRIZE_SAMPLE },
   };
 
   /* ---------- 부트 ---------- */
   function uploadSummary() {
-    return ['daily', 'events', 'seg', 'prizes']
+    return ['daily', 'couponDaily', 'couponAlloc', 'events', 'seg', 'prizes']
       .map((kind) => ({ kind, n: Store.uploadsOf(kind).length }))
       .filter((x) => x.n)
       .map((x) => `${KIND_LABEL[x.kind]} ${x.n.toLocaleString()}행`)
@@ -491,9 +584,10 @@
     el('exportBtn').addEventListener('click', exportAll);
     el('sampleBtn').addEventListener('click', () => {
       note(
-        '같은 컬럼명으로 채워 올리면 됩니다. 파일은 순서대로 올려주세요 — ①이 다른 화면의 기준이 됩니다.<br>' +
-          '<a href="#" data-sample="daily">① 일자별 실적</a> · <a href="#" data-sample="events">② 캠페인</a> · ' +
-          '<a href="#" data-sample="seg">③ Seg.별 실적</a> · <a href="#" data-sample="prizes">④ 경품</a>'
+        '시스템에서 뽑은 raw를 그대로 올리면 됩니다. 캠페인의 유료·쿠폰 가입자는 ①②에서, 모수는 ③에서 정책번호로 자동 집계합니다.<br>' +
+          '<a href="#" data-sample="daily">① 일별 유료 가입자</a> · <a href="#" data-sample="couponDaily">② 일별 쿠폰 가입자</a> · ' +
+          '<a href="#" data-sample="couponAlloc">③ 쿠폰 할당 내역</a> · <a href="#" data-sample="events">④ 캠페인 정보</a> · ' +
+          '<a href="#" data-sample="prizes">⑤ 경품</a> · <a href="#" data-sample="seg">⑥ Seg.별 실적</a>'
       );
     });
 
