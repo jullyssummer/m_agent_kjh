@@ -216,11 +216,45 @@ tr.period-row td { background: #f8fafc; color: var(--muted); }
 .delta.up { color: var(--good); }
 .delta.down { color: var(--warn); }
 
-.period-picker { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
-.period-picker .chips { display: flex; gap: 6px; flex-wrap: wrap; }
-.period-picker .chip { display: inline-flex; align-items: center; gap: 5px; }
-.period-picker .chip.on { border-color: var(--brand); color: var(--brand); background: var(--brand-soft); }
-.period-picker .chip.toggle { border-style: dashed; }
+/* ---------- 기간 선택 ---------- */
+.period-picker {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 12px; margin-bottom: 12px;
+  background: #f8fafc; border: 1px solid var(--line); border-radius: 10px;
+}
+.period-picker > .hint {
+  margin: 0; flex-shrink: 0; font-size: 12px; font-weight: 700; color: var(--text);
+}
+.period-picker .chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+.chip {
+  border: 1px solid var(--line); background: #fff; color: var(--muted);
+  border-radius: 8px; padding: 6px 11px;
+  font: inherit; font-size: 12px; font-variant-numeric: tabular-nums;
+  cursor: pointer; transition: background .12s, border-color .12s, color .12s;
+}
+.chip:hover { border-color: #b9cdf0; background: #f2f7ff; color: var(--brand); }
+.chip.on {
+  background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 700;
+  box-shadow: 0 1px 3px rgba(13, 91, 209, .28);
+}
+.chip.on:hover { background: #0a4cb0; border-color: #0a4cb0; color: #fff; }
+
+/* 연도가 바뀌는 지점에 구분선을 둬 3개년이 섞여도 읽힌다 */
+.chip-year {
+  font-size: 11px; color: var(--muted); font-weight: 700;
+  padding-left: 8px; margin-left: 2px; border-left: 1px solid var(--line);
+}
+.chips .chip-year:first-child { border-left: none; padding-left: 0; margin-left: 0; }
+.chip.toggle {
+  border: none; background: none; color: var(--muted);
+  text-decoration: underline; text-underline-offset: 3px; padding: 6px 2px;
+}
+.chip.toggle:hover { background: none; color: var(--brand); }
+.chip-count {
+  font-size: 12px; color: var(--brand); font-weight: 700; flex-shrink: 0;
+  padding-left: 10px; margin-left: 4px; border-left: 1px solid var(--line);
+}
 .memo-input {
   width: 160px; padding: 4px 8px; font: inherit; font-size: 12px;
   border: 1px solid transparent; border-radius: 6px; background: #f8fafc;

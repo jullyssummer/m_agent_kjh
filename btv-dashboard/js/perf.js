@@ -466,17 +466,20 @@
     const recent = BTV.months.slice(-12);
     const visible = showAll ? BTV.months : BTV.months.filter((m) => recent.includes(m) || selected.has(m));
     const hidden = BTV.months.length - visible.length;
-    return (
-      visible
-        .map(
-          (m) =>
-            `<button type="button" class="chip ${selected.has(m) ? 'on' : ''}" data-period="${m}">${periodLabel(m)}</button>`
-        )
-        .join('') +
-      (hidden > 0 || showAll
-        ? `<button type="button" class="chip toggle" data-toggle="1">${showAll ? '최근 12개월만 보기' : `이전 기간 더 보기 (+${hidden})`}</button>`
-        : '')
-    );
+    let lastYear = null;
+    const buttons = visible
+      .map((m) => {
+        const year = m.slice(0, 4);
+        const divider = year !== lastYear ? `<span class="chip-year">${year.slice(2)}년</span>` : '';
+        lastYear = year;
+        return `${divider}<button type="button" class="chip ${selected.has(m) ? 'on' : ''}" data-period="${m}">${periodLabel(m)}</button>`;
+      })
+      .join('');
+    const toggle =
+      hidden > 0 || showAll
+        ? `<button type="button" class="chip toggle" data-toggle="1">${showAll ? '최근 12개월만' : `이전 기간 +${hidden}`}</button>`
+        : '';
+    return `${buttons}${toggle}<span class="chip-count">${selected.size}개 선택</span>`;
   }
 
   function renderPeriodChips() {
