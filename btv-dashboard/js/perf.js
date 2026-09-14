@@ -380,6 +380,27 @@
       }</tbody>`;
   }
 
+  // 경품이 여러 등급이면 합산으로 접어 두고, 눌러서 등급별로 펼친다
+  function prizeSummary(e) {
+    if (!e.prizes.length) return '<span class="hint">없음</span>';
+    const total = `${fmt.num(e.prizeCount)}개 · ${fmt.manwon(e.actualBudget)}`;
+    if (e.prizes.length === 1) return `${e.prizeKind} ${e.priceBand} <span class="hint">${total}</span>`;
+    return `<button type="button" class="prize-toggle" data-prize="${e.id}"><span class="caret">▸</span> ${e.prizeMix}</button> <span class="hint">${total}</span>`;
+  }
+
+  function prizeDetailRows(e) {
+    if (e.prizes.length < 2) return '';
+    return e.prizes
+      .map(
+        (p) => `<tr class="prize-row" data-prize-child="${e.id}" hidden>
+      <td></td><td class="left"><span class="tag">${p.rankLabel}</span> ${p.kind} ${p.priceBand}</td>
+      <td class="left hint" colspan="8">수량 ${fmt.num(p.count)}개 · 수령 ${fmt.num(p.receivers)}명 (${fmt.pct(p.receiveRate, 1)}) · 경쟁률 ${p.competition ? `${p.competition.toFixed(1)} : 1` : '-'} · 구매비 ${fmt.manwon(p.purchaseCost)} · 실예산 ${fmt.manwon(p.actualBudget)}</td>
+      <td></td>
+    </tr>`
+      )
+      .join('');
+  }
+
   function renderCampaignTable() {
     const list = BTV.eventsOfMonth(month).filter((e) => e.signups != null);
     const totals = list.reduce(
@@ -395,7 +416,7 @@
         <th class="left">구분</th><th class="left">이벤트명</th><th class="left">일정</th>
         <th class="left">타입</th><th>할인율</th>
         <th>모수</th><th>가입자 수</th><th>가입률</th>
-        <th>일평균</th><th>휴일 일평균</th><th>평일 일평균</th><th class="left">비고</th>
+        <th>일평균</th><th>휴일 일평균</th><th>평일 일평균</th><th class="left">경품</th><th class="left">비고</th>
       </tr></thead>
       <tbody>${
         list.length
@@ -413,11 +434,12 @@
         <td class="num">${fmt.num(e.dailyAvg)}</td>
         <td class="num">${fmt.num(e.restAvg)}</td>
         <td class="num">${fmt.num(e.weekdayAvg)}</td>
+        <td class="left">${prizeSummary(e)}</td>
         <td class="left"><input class="memo-input" data-memo="${e.id}" value="${Store.memoOf(e.id).replace(/"/g, '&quot;')}" placeholder="비고 입력"></td>
-      </tr>`
+      </tr>${prizeDetailRows(e)}`
               )
               .join('')
-          : '<tr><td colspan="12" class="left">집계된 캠페인 실적이 없습니다.</td></tr>'
+          : '<tr><td colspan="13" class="left">집계된 캠페인 실적이 없습니다.</td></tr>'
       }</tbody>
       ${
         list.length
@@ -429,6 +451,7 @@
         <td class="num">${fmt.num(list.reduce((s, e) => s + e.dailyAvg, 0) / list.length)}</td>
         <td class="num">${fmt.num(list.reduce((s, e) => s + (e.restAvg || 0), 0) / list.length)}</td>
         <td class="num">${fmt.num(list.reduce((s, e) => s + (e.weekdayAvg || 0), 0) / list.length)}</td>
+        <td class="left">${fmt.manwon(list.reduce((s, e) => s + (e.actualBudget || 0), 0))}</td>
         <td></td>
       </tr></tfoot>`
           : ''
@@ -736,6 +759,18 @@
     el('campaignTable').addEventListener('change', (e) => {
       const id = e.target.dataset.memo;
       if (id) Store.setMemo(id, e.target.value.trim());
+    });
+    el('campaignTable').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-prize]');
+      if (!btn) return;
+      const id = btn.dataset.prize;
+      const open = btn.classList.toggle('open');
+      btn.querySelector('.caret').textContent = open ? '▾' : '▸';
+      el('campaignTable')
+        .querySelectorAll(`[data-prize-child="${id}"]`)
+        .forEach((row) => {
+          row.hidden = !open;
+        });
     });
     el('eventPlanTable').addEventListener('click', (e) => {
       const row = e.target.closest('[data-expand]');

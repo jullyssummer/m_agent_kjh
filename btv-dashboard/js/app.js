@@ -45,6 +45,18 @@
     allocated: ['allocated', '할당'],
     used: ['used', '사용'],
   };
+  const PRIZE_ALIAS = {
+    event: ['event', 'event_name', '이벤트명'],
+    rank: ['rank', '등급'],
+    kind: ['kind', 'prize_kind', '경품종류', '경품 종류'],
+    form: ['form', 'prize_form', '경품유형', '경품 유형'],
+    unitPrice: ['unit_price', '경품단가', '경품 단가'],
+    count: ['count', 'prize_count', '경품수량', '경품 수량'],
+    winners: ['winners', '당첨자수', '당첨자 수'],
+    receivers: ['receivers', '실수령자수', '실수령자 수', '수령자 수'],
+    purchaseCost: ['purchase_cost', '경품구매비', '경품 구매비'],
+    actualBudget: ['actual_budget', '실예산'],
+  };
   const EVENT_ALIAS = {
     id: ['id', 'event_id', '이벤트id'],
     name: ['name', 'event_name', '이벤트명'],
@@ -92,6 +104,7 @@
     const named = has(EVENT_ALIAS.name) || has(EVENT_ALIAS.id);
     const dated = has(DAILY_ALIAS.date);
     if (has(SEG_ALIAS.segment) && has(SEG_ALIAS.allocated)) return 'seg';
+    if (named && has(PRIZE_ALIAS.rank) && has(PRIZE_ALIAS.count)) return 'prizes';
     if (named) return 'events';
     if (dated) return 'daily';
     return null;
@@ -112,6 +125,30 @@
         };
       })
       .filter((r) => r && r.segment);
+  }
+
+  function buildPrizes(rows) {
+    return rows
+      .map((r) => {
+        const event = val(r, PRIZE_ALIAS.event);
+        const count = toNum(val(r, PRIZE_ALIAS.count)) || 0;
+        const unitPrice = toNum(val(r, PRIZE_ALIAS.unitPrice)) || 0;
+        const receivers = toNum(val(r, PRIZE_ALIAS.receivers));
+        if (!event || !count) return null;
+        return {
+          event,
+          rank: toNum(val(r, PRIZE_ALIAS.rank)) || 1,
+          kind: val(r, PRIZE_ALIAS.kind) || '없음',
+          form: val(r, PRIZE_ALIAS.form) || '-',
+          unitPrice,
+          count,
+          winners: toNum(val(r, PRIZE_ALIAS.winners)) != null ? toNum(val(r, PRIZE_ALIAS.winners)) : count,
+          receivers: receivers != null ? receivers : count,
+          purchaseCost: toNum(val(r, PRIZE_ALIAS.purchaseCost)) != null ? toNum(val(r, PRIZE_ALIAS.purchaseCost)) : count * unitPrice,
+          actualBudget: toNum(val(r, PRIZE_ALIAS.actualBudget)) != null ? toNum(val(r, PRIZE_ALIAS.actualBudget)) : (receivers != null ? receivers : count) * unitPrice,
+        };
+      })
+      .filter(Boolean);
   }
 
   function buildDaily(rows) {
@@ -224,18 +261,19 @@
     Compare.render();
   }
 
-  const KIND_LABEL = { daily: '일자별 실적', events: '캠페인', seg: 'Seg.별 실적' };
+  const KIND_LABEL = { daily: '일자별 실적', events: '캠페인', seg: 'Seg.별 실적', prizes: '경품' };
 
   // 저장된 업로드를 순서대로 다시 적용한다 (캠페인이 있어야 이벤트별 일자를 붙일 수 있다)
   function applyStored() {
     if (!Store.isRealData) return false;
     BTV.clearSeed();
-    ['daily', 'events', 'seg'].forEach((kind) => {
+    ['daily', 'events', 'seg', 'prizes'].forEach((kind) => {
       const rows = Store.uploadsOf(kind);
       if (!rows.length) return;
       if (kind === 'daily') BTV.replaceDays(rows);
       if (kind === 'events') BTV.replaceEvents(rows);
       if (kind === 'seg') BTV.replaceSegments(rows);
+      if (kind === 'prizes') BTV.replacePrizes(rows);
     });
     BTV.recomputeEventDays();
     return true;
@@ -262,7 +300,7 @@
         note('⚠ 인식할 수 없는 형식입니다. "샘플 양식"의 컬럼명을 확인해주세요.');
         return;
       }
-      const builders = { daily: buildDaily, events: buildEvents, seg: buildSeg };
+      const builders = { daily: buildDaily, events: buildEvents, seg: buildSeg, prizes: buildPrizes };
       const built = builders[kind](rows);
       if (!built.length) {
         note('⚠ 읽을 수 있는 데이터 행이 없습니다.');
@@ -290,6 +328,12 @@
     URL.revokeObjectURL(a.href);
   }
 
+  const PRIZE_SAMPLE = [
+    '이벤트명,등급,경품 종류,경품 유형,경품 단가,경품 수량,당첨자 수,실수령자 수,경품 구매비,실예산',
+    '9월 추석 연휴 특가,1,숙박권,실물,100000,50,50,41,5000000,4100000',
+    '9월 추석 연휴 특가,2,상품권,디지털,20000,300,300,246,6000000,4920000',
+    '9월 추석 연휴 특가,3,티켓,디지털,10000,1000,1000,742,10000000,7420000',
+  ].join('\n');
   const SEG_SAMPLE = [
     '월,UI구분,SEG,할당,사용',
     '2026-09,541 이상,신규가입,135000,1215',
@@ -307,11 +351,12 @@
     daily: { file: 'btv_01_일자별실적_양식.csv', content: DAILY_SAMPLE },
     events: { file: 'btv_02_캠페인_양식.csv', content: EVENT_SAMPLE },
     seg: { file: 'btv_03_Seg별실적_양식.csv', content: SEG_SAMPLE },
+    prizes: { file: 'btv_04_경품_양식.csv', content: PRIZE_SAMPLE },
   };
 
   /* ---------- 부트 ---------- */
   function uploadSummary() {
-    return ['daily', 'events', 'seg']
+    return ['daily', 'events', 'seg', 'prizes']
       .map((kind) => ({ kind, n: Store.uploadsOf(kind).length }))
       .filter((x) => x.n)
       .map((x) => `${KIND_LABEL[x.kind]} ${x.n.toLocaleString()}행`)
@@ -352,7 +397,7 @@
       note(
         '같은 컬럼명으로 채워 올리면 됩니다. 파일은 순서대로 올려주세요 — ①이 다른 화면의 기준이 됩니다.<br>' +
           '<a href="#" data-sample="daily">① 일자별 실적</a> · <a href="#" data-sample="events">② 캠페인</a> · ' +
-          '<a href="#" data-sample="seg">③ Seg.별 실적</a>'
+          '<a href="#" data-sample="seg">③ Seg.별 실적</a> · <a href="#" data-sample="prizes">④ 경품</a>'
       );
     });
 

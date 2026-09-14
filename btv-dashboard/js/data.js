@@ -112,6 +112,24 @@
   const periodsOf = (ev) =>
     ev.periods && ev.periods.length ? ev.periods : [{ startDate: ev.startDate, endDate: ev.endDate }];
   const covers = (ev, date) => periodsOf(ev).some((p) => p.startDate <= date && date <= p.endDate);
+  // 경품은 여러 등급이 걸릴 수 있다. 예전 단일 경품 형식도 1건짜리 목록으로 취급한다.
+  const prizesOf = (ev) => {
+    if (ev.prizes && ev.prizes.length) return ev.prizes.slice().sort((a, b) => a.rank - b.rank);
+    if (!ev.prizeKind || ev.prizeKind === '없음') return [];
+    return [
+      {
+        rank: 1,
+        kind: ev.prizeKind,
+        form: ev.prizeForm || '-',
+        unitPrice: ev.prizeUnitPrice || 0,
+        count: ev.prizeCount || 0,
+        winners: ev.winners || 0,
+        receivers: ev.actualReceivers || 0,
+        purchaseCost: ev.prizePurchaseCost || 0,
+        actualBudget: ev.actualBudget || 0,
+      },
+    ];
+  };
   const overlapsRange = (ev, from, to) => periodsOf(ev).some((p) => p.startDate <= to && p.endDate >= from);
 
   const SEASON = { 1: 1.0, 2: 0.96, 3: 1.05, 4: 1.08, 5: 1.13, 6: 1.09, 7: 1.16, 8: 1.19, 9: 1.22, 10: 1.1, 11: 1.06, 12: 1.14 };
@@ -309,35 +327,51 @@
     ev.couponRest = Math.round(bucket.couponRest);
     ev.couponWeekday = Math.round(bucket.couponWeekday);
 
+    // 한 이벤트에 경품이 여러 등급으로 걸릴 수 있다 (1등 고가 소량 + 하위 등급 저가 다량)
+    const prizes = [];
     if (hasRaffle(ev.type)) {
-      const scarcity = ev.prizeUnitPrice >= 50000 ? [100, 200] : [200, 300, 500, 1000];
-      const prizeCount = pick(scarcity);
-      const entrants = Math.max(prizeCount * 3, Math.round(ev.signups * between(1.6, 2.8)));
-      const receiveRate = Math.min(0.96, 0.6 + Math.log10(ev.prizeUnitPrice / 10000) * 0.13 + between(0, 0.12));
-      const actualReceivers = Math.round(prizeCount * receiveRate);
-      ev.prizeCount = prizeCount;
+      const tiers = Math.round(between(1, 3.4));
+      const entrants = Math.max(300, Math.round(ev.signups * between(1.6, 2.8)));
       ev.entrants = entrants;
-      ev.winners = prizeCount;
-      ev.actualReceivers = actualReceivers;
-      ev.prizePurchaseCost = prizeCount * ev.prizeUnitPrice;
-      ev.actualBudget = actualReceivers * ev.prizeUnitPrice;
+      for (let rank = 1; rank <= tiers; rank += 1) {
+        const unitPrice = rank === 1 ? ev.prizeUnitPrice : pick(UNIT_PRICES.filter((p) => p < ev.prizeUnitPrice)) || 10000;
+        const count = rank === 1 ? pick(unitPrice >= 50000 ? [50, 100] : [100, 200]) : pick([300, 500, 1000]);
+        const receiveRate = Math.min(0.96, 0.6 + Math.log10(unitPrice / 10000) * 0.13 + between(0, 0.12));
+        const receivers = Math.round(count * receiveRate);
+        prizes.push({
+          rank,
+          kind: rank === 1 ? ev.prizeKind : pick(PRIZE_KINDS),
+          form: '',
+          unitPrice,
+          count,
+          winners: count,
+          receivers,
+          purchaseCost: count * unitPrice,
+          actualBudget: receivers * unitPrice,
+        });
+      }
     } else if (hasAll(ev.type)) {
       const receiveRate = between(0.72, 0.93);
       const receivers = Math.round(ev.signups * receiveRate);
-      ev.prizeCount = ev.signups;
       ev.entrants = null;
-      ev.winners = ev.signups;
-      ev.actualReceivers = receivers;
-      ev.prizePurchaseCost = ev.signups * ev.allPrizeUnitPrice;
-      ev.actualBudget = receivers * ev.allPrizeUnitPrice;
+      prizes.push({
+        rank: 1,
+        kind: ev.prizeKind,
+        form: '',
+        unitPrice: ev.allPrizeUnitPrice,
+        count: ev.signups,
+        winners: ev.signups,
+        receivers,
+        purchaseCost: ev.signups * ev.allPrizeUnitPrice,
+        actualBudget: receivers * ev.allPrizeUnitPrice,
+      });
     } else {
       ev.entrants = null;
-      ev.prizeCount = null;
-      ev.winners = null;
-      ev.actualReceivers = null;
-      ev.prizePurchaseCost = null;
-      ev.actualBudget = null;
     }
+    prizes.forEach((p) => {
+      p.form = PRIZE_FORM[p.kind] || '-';
+    });
+    ev.prizes = prizes;
   });
 
   /* ---------- Seg.별 실적 (UI 구분 × SEG) ---------- */
@@ -470,6 +504,25 @@
     const lastEnd = periods[periods.length - 1].endDate;
     const firstStart = periods[0].startDate;
     const status = lastEnd <= asOf ? '종료' : firstStart <= asOf ? '진행중' : '예정';
+
+    // 경품 합산. 예전 단일 경품 형식으로 올라온 건은 1건짜리 목록으로 맞춘다
+    const prizes = prizesOf(ev);
+    const sumOf = (f) => (prizes.length ? prizes.reduce((s, p) => s + (f(p) || 0), 0) : null);
+    const prizeCount = sumOf((p) => p.count);
+    const winners = sumOf((p) => p.winners);
+    const actualReceivers = sumOf((p) => p.receivers);
+    const prizePurchaseCost = sumOf((p) => p.purchaseCost);
+    const actualBudget = sumOf((p) => p.actualBudget);
+    const lead = prizes.slice().sort((a, b) => b.unitPrice - a.unitPrice)[0]; // 대표(최고가) 경품
+    // 등급별로도 응모자 전체가 대상이므로 경쟁률은 각 등급 수량으로 나눈다
+    const prizeRows = prizes.map((p) => ({
+      ...p,
+      competition: ev.entrants && p.count ? ev.entrants / p.count : null,
+      receiveRate: p.receivers != null && p.winners ? p.receivers / p.winners : null,
+      budgetPerHead: p.actualBudget && signups ? p.actualBudget / signups : null,
+      priceBand: p.unitPrice ? `${p.unitPrice / 10000}만원` : '없음',
+      rankLabel: `${p.rank}등`,
+    }));
     return {
       ...ev,
       status,
@@ -492,13 +545,23 @@
       couponRestAvg: has && elapsedRestDays ? ev.couponRest / elapsedRestDays : null,
       couponWeekdayAvg: has && elapsedWeekdayDays ? ev.couponWeekday / elapsedWeekdayDays : null,
       organicRatio: has && ev.paidSignups ? ev.couponSignups / ev.paidSignups : null,
-      competition: ev.entrants && ev.prizeCount ? ev.entrants / ev.prizeCount : null,
+      prizes: prizeRows,
+      prizeTiers: prizes.length,
+      prizeMix: prizes.length > 1 ? `복합 ${prizes.length}종` : prizes.length === 1 ? '단일' : '없음',
+      prizeKind: lead ? lead.kind : ev.prizeKind,
+      prizeUnitPrice: lead ? lead.unitPrice : ev.prizeUnitPrice,
+      prizeCount,
+      winners,
+      actualReceivers,
+      prizePurchaseCost,
+      actualBudget,
+      competition: ev.entrants && prizeCount ? ev.entrants / prizeCount : null,
       entryRate: ev.entrants ? ev.entrants / ev.pool : null,
-      receiveRate: ev.actualReceivers && ev.winners ? ev.actualReceivers / ev.winners : null,
-      costPerEntrant: ev.actualBudget && ev.entrants ? ev.actualBudget / ev.entrants : null,
-      budgetPerHead: ev.actualBudget && signups ? ev.actualBudget / signups : null,
-      budgetBand: budgetBandOf(ev.actualBudget && signups ? ev.actualBudget / signups : null),
-      priceBand: ev.prizeUnitPrice ? `${ev.prizeUnitPrice / 10000}만원` : '없음',
+      receiveRate: actualReceivers != null && winners ? actualReceivers / winners : null,
+      costPerEntrant: actualBudget && ev.entrants ? actualBudget / ev.entrants : null,
+      budgetPerHead: actualBudget && signups ? actualBudget / signups : null,
+      budgetBand: budgetBandOf(actualBudget && signups ? actualBudget / signups : null),
+      priceBand: lead && lead.unitPrice ? `${lead.unitPrice / 10000}만원` : '없음',
       isRaffle: hasRaffle(ev.type),
       isAllPrize: hasAll(ev.type),
     };
@@ -596,6 +659,57 @@
       })
       .filter(Boolean)
       .sort((a, b) => (a.event.startDate < b.event.startDate ? 1 : -1));
+  }
+
+  // 교차분석용 — 이벤트 × 경품 등급으로 한 행씩 펼친다
+  function prizeRows() {
+    return doneEvents().flatMap((e) =>
+      e.prizes.map((p) => ({
+        ...e,
+        prizeKind: p.kind,
+        prizeForm: p.form,
+        prizeUnitPrice: p.unitPrice,
+        priceBand: p.priceBand,
+        rank: p.rank,
+        rankLabel: p.rankLabel,
+        prizeCount: p.count,
+        winners: p.winners,
+        actualReceivers: p.receivers,
+        prizePurchaseCost: p.purchaseCost,
+        actualBudget: p.actualBudget,
+        competition: p.competition,
+        receiveRate: p.receiveRate,
+        budgetPerHead: p.budgetPerHead,
+        eventId: e.id,
+        id: `${e.id}#${p.rank}`,
+      }))
+    );
+  }
+
+  function replacePrizes(rows) {
+    const byEvent = new Map();
+    rows.forEach((r) => {
+      const list = byEvent.get(r.event) || [];
+      list.push(r);
+      byEvent.set(r.event, list);
+    });
+    byEvent.forEach((list, key) => {
+      const ev = state.events.find((e) => e.id === key || e.name === key);
+      if (!ev) return;
+      ev.prizes = list
+        .map((r) => ({
+          rank: r.rank,
+          kind: r.kind,
+          form: r.form,
+          unitPrice: r.unitPrice,
+          count: r.count,
+          winners: r.winners != null ? r.winners : r.count,
+          receivers: r.receivers,
+          purchaseCost: r.purchaseCost != null ? r.purchaseCost : r.count * r.unitPrice,
+          actualBudget: r.actualBudget != null ? r.actualBudget : r.receivers * r.unitPrice,
+        }))
+        .sort((a, b) => a.rank - b.rank);
+    });
   }
 
   function allEvents() {
@@ -777,6 +891,9 @@
     eventsOfMonth,
     eventMetrics,
     periodsOf,
+    prizesOf,
+    prizeRows,
+    replacePrizes,
     covers,
     monthStats,
     segStats,

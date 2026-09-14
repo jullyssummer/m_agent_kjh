@@ -18,6 +18,13 @@
       get: (e) => e.budgetBand,
       sort: (a, b) => BTV.BUDGET_BANDS.indexOf(a) - BTV.BUDGET_BANDS.indexOf(b),
     },
+    rankLabel: { label: '경품 등급', get: (e) => e.rankLabel || '-', sort: (a, b) => parseFloat(a) - parseFloat(b) },
+    prizeMix: {
+      label: '경품 구성',
+      get: (e) => e.prizeMix || '없음',
+      sort: (a, b) => a.localeCompare(b, 'ko'),
+    },
+    prizeForm: { label: '경품 유형', get: (e) => e.prizeForm || '-', sort: (a, b) => a.localeCompare(b, 'ko') },
   };
 
   const METRICS = {
@@ -38,13 +45,31 @@
       fmt: (v) => (v == null ? '-' : `${v.toFixed(1)} : 1`),
       better: 'high',
     },
+    prizeCount: { label: '경품 수량 (합계)', agg: 'sum', get: (e) => e.prizeCount, fmt: (v) => fmt.num(v), better: 'high' },
+    winners: { label: '당첨자 수 (합계)', agg: 'sum', get: (e) => e.winners, fmt: (v) => fmt.num(v), better: 'high' },
+    prizePurchaseCost: {
+      label: '경품 구매비 (합계)',
+      agg: 'sum',
+      get: (e) => e.prizePurchaseCost,
+      fmt: (v) => fmt.manwon(v),
+      better: 'low',
+    },
+    actualBudget: { label: '실예산 (합계)', agg: 'sum', get: (e) => e.actualBudget, fmt: (v) => fmt.manwon(v), better: 'low' },
+    budgetPerHead: {
+      label: '인당 예산 (평균)',
+      agg: 'avg',
+      get: (e) => e.budgetPerHead,
+      fmt: (v) => fmt.won(v),
+      better: 'low',
+    },
     // 비교 카드 전용
     dailyAvg: { label: '일평균 가입자 수', agg: 'avg', get: (e) => e.dailyAvg, fmt: (v) => fmt.num(v), better: 'high' },
     paidSignups: { label: '유료 가입자 수', agg: 'avg', get: (e) => e.paidSignups, fmt: (v) => fmt.num(v), better: 'high' },
     paidDailyAvg: { label: '일평균 유료 가입자 수', agg: 'avg', get: (e) => e.paidDailyAvg, fmt: (v) => fmt.num(v), better: 'high' },
   };
 
-  const PIVOT_METRICS = [
+  // 이벤트 단위 지표는 경품 등급으로 쪼개면 중복 집계되므로 단위별로 고를 수 있는 지표를 나눈다
+  const EVENT_METRICS = [
     'signups',
     'rate',
     'dailyRate',
@@ -57,7 +82,28 @@
     'receiveRate',
     'competition',
   ];
+  const PRIZE_METRICS = [
+    'prizeCount',
+    'winners',
+    'actualReceivers',
+    'receiveRate',
+    'competition',
+    'prizePurchaseCost',
+    'actualBudget',
+    'budgetPerHead',
+    'count',
+  ];
   const RAFFLE_ONLY = ['entrants', 'entryRate', 'actualReceivers', 'receiveRate', 'competition'];
+  const pivotUnit = () => el('pivotUnit').value;
+
+  function syncMetricOptions() {
+    const keys = pivotUnit() === 'prize' ? PRIZE_METRICS : EVENT_METRICS;
+    const current = el('pivotMetric').value;
+    el('pivotMetric').innerHTML = keys
+      .map((key) => `<option value="${key}">${METRICS[key].label}</option>`)
+      .join('');
+    el('pivotMetric').value = keys.includes(current) ? current : keys[0];
+  }
 
   function aggregate(list, metric) {
     const spec = METRICS[metric];
@@ -459,8 +505,10 @@
     const colDim = el('pivotCol').value;
     const metric = el('pivotMetric').value;
     const spec = METRICS[metric];
-    let list = BTV.doneEvents();
+    const unit = pivotUnit();
+    let list = unit === 'prize' ? BTV.prizeRows() : BTV.doneEvents();
     if (RAFFLE_ONLY.includes(metric)) list = list.filter((e) => e.isRaffle && e.entrants);
+    if (unit === 'prize') list = list.filter((e) => e.prizeCount);
 
     const rowVals = [...new Set(list.map(DIMS[rowDim].get))].sort(DIMS[rowDim].sort);
     const colVals = [...new Set(list.map(DIMS[colDim].get))].sort(DIMS[colDim].sort);
@@ -553,8 +601,10 @@
     const rowDim = el('pivotRow').value;
     const colDim = el('pivotCol').value;
     const metric = el('pivotMetric').value;
-    let list = BTV.doneEvents();
+    const unit = pivotUnit();
+    let list = unit === 'prize' ? BTV.prizeRows() : BTV.doneEvents();
     if (RAFFLE_ONLY.includes(metric)) list = list.filter((e) => e.isRaffle && e.entrants);
+    if (unit === 'prize') list = list.filter((e) => e.prizeCount);
     const subset = list.filter((e) => DIMS[rowDim].get(e) === rowValue && DIMS[colDim].get(e) === colValue);
 
     el('pivotDrill').hidden = false;
@@ -566,20 +616,21 @@
       </header>
       <div class="table-wrap"><table>
         <thead><tr>
-          <th class="left">이벤트명</th><th class="left">기간</th><th>모수</th><th>가입자 수</th>
-          <th>가입률</th><th>일평균</th><th>인당 예산</th><th class="left">기준 이벤트로</th>
+          <th class="left">이벤트명</th><th class="left">경품</th><th class="left">기간</th><th>모수</th>
+          <th>가입자 수</th><th>가입률</th><th>경품 수량</th><th>인당 예산</th><th class="left">기준 이벤트로</th>
         </tr></thead>
         <tbody>${subset
           .map(
             (e) => `<tr>
           <td class="left">${e.name}</td>
+          <td class="left">${e.rankLabel ? `<span class="tag">${e.rankLabel}</span> ` : ''}${e.prizeKind === '없음' ? '-' : `${e.prizeKind} ${e.priceBand}`}</td>
           <td class="left">${fmt.date(e.startDate)} ~ ${fmt.date(e.endDate)}</td>
           <td class="num">${fmt.num(e.pool)}</td>
           <td class="num">${fmt.num(e.signups)}</td>
           <td class="num">${fmt.pct(e.rate)}</td>
-          <td class="num">${fmt.num(e.dailyAvg)}</td>
+          <td class="num">${fmt.num(e.prizeCount)}</td>
           <td class="num">${e.budgetPerHead ? fmt.won(e.budgetPerHead) : '-'}</td>
-          <td class="left"><button class="btn small ghost" data-pick="${e.id}">선택</button></td>
+          <td class="left"><button class="btn small ghost" data-pick="${e.eventId || e.id}">선택</button></td>
         </tr>`
           )
           .join('')}</tbody>
@@ -610,7 +661,7 @@
     paintComment('pivotComment', [
       {
         k: '분석 조건',
-        v: `${DIMS[rowDim].label} × ${DIMS[colDim].label} · 지표 <b>${spec.label}</b> · 대상 ${list.length}건`,
+        v: `${pivotUnit() === 'prize' ? '경품 단위' : '이벤트 단위'} · ${DIMS[rowDim].label} × ${DIMS[colDim].label} · 지표 <b>${spec.label}</b> · 대상 ${list.length}건`,
       },
       { k: `가장 ${high} 조합`, v: `<b>${top.r} × ${top.c}</b> — ${spec.fmt(top.value)} (n=${top.n})` },
       { k: `가장 ${low} 조합`, v: `${bottom.r} × ${bottom.c} — ${spec.fmt(bottom.value)} (n=${bottom.n})` },
@@ -1099,12 +1150,22 @@
       el('pivotRow').insertAdjacentHTML('beforeend', `<option value="${key}">${dim.label}</option>`);
       el('pivotCol').insertAdjacentHTML('beforeend', `<option value="${key}">${dim.label}</option>`);
     });
-    PIVOT_METRICS.forEach((key) => {
-      el('pivotMetric').insertAdjacentHTML('beforeend', `<option value="${key}">${METRICS[key].label}</option>`);
+    syncMetricOptions();
+    el('pivotRow').value = 'prizeKind';
+    el('pivotCol').value = 'rankLabel';
+    el('pivotMetric').value = 'competition';
+    el('pivotUnit').addEventListener('change', () => {
+      syncMetricOptions();
+      // 단위를 바꾸면 그 단위에서 의미 있는 기본 조합으로 맞춘다
+      if (pivotUnit() === 'prize') {
+        el('pivotRow').value = 'prizeKind';
+        el('pivotCol').value = 'rankLabel';
+      } else {
+        el('pivotRow').value = 'type';
+        el('pivotCol').value = 'discountRate';
+      }
+      renderPivot();
     });
-    el('pivotRow').value = 'type';
-    el('pivotCol').value = 'discountRate';
-    el('pivotMetric').value = 'rate';
 
     ALL_FILTERS.forEach((f) => el(f.id).addEventListener('change', renderAllEvents));
     el('allEventsTable').addEventListener('click', (e) => {
