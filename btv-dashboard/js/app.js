@@ -296,7 +296,6 @@
     el('asOf').textContent = BTV.LAST_DATA_DAY;
     Perf.init();
     Compare.init();
-    Chat.init();
 
     if (usingReal) {
       note(
@@ -310,7 +309,6 @@
       if (!view) return;
       document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.view === view));
       document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${view}`));
-      Chat.setContext(view);
       // 숨겨진 상태에서 그려진 차트의 크기를 바로잡는다
       if (view === 'compare') Compare.render();
       if (view === 'perf') Perf.render();
@@ -360,13 +358,6 @@
       }
     });
 
-    const toggleChat = () => {
-      document.body.classList.toggle('chat-open');
-      setTimeout(() => Object.values(Charts.registry).forEach((c) => c.resize()), 60);
-    };
-    el('chatToggle').addEventListener('click', toggleChat);
-    el('chatClose').addEventListener('click', toggleChat);
-    document.body.classList.add('chat-open');
   }
 
   document.addEventListener('DOMContentLoaded', boot);

@@ -24,7 +24,6 @@
       <label class="btn" for="csvInput">CSV 업로드</label>
       <input type="file" id="csvInput" accept=".csv,text/csv" hidden>
       <button class="btn ghost" id="sampleBtn">샘플 양식</button>
-      <button class="btn ghost" id="chatToggle">AI 채팅</button>
     </div>
   </header>
 
@@ -54,7 +53,6 @@
         <section class="card">
           <header class="card-head">
             <h2>AI 주간 실적 요약</h2>
-            <button class="btn small ghost" id="saveSummary">인사이트로 저장</button>
           </header>
           <div id="weeklySummary" class="summary"></div>
         </section>
@@ -136,7 +134,7 @@
             <div class="chips" id="segPeriods"></div>
           </div>
           <div class="table-wrap"><table id="segTable"></table></div>
-          <p class="hint">당월은 전일 기준 누적이라 기간 길이가 달라, 사용·가입률의 증감률은 경과일 기준으로 환산해 비교합니다. 증감 막대 길이는 SEG 중 최대 증감폭 대비 비율입니다.</p>
+          <p class="hint">셀 색은 <b>같은 UI 그룹·같은 기간 안에서</b> SEG끼리 비교한 값의 크기입니다(진할수록 큼). 당월은 전일 기준 누적이라 기간 길이가 달라, 사용·가입률의 증감률은 경과일 기준으로 환산해 비교합니다. 증감 막대 길이는 SEG 중 최대 증감폭 대비 비율입니다.</p>
         </section>
       </section>
 
@@ -308,38 +306,6 @@
       </div>
     </div>
 
-    <!-- AI 채팅 + 인사이트 축적소 -->
-    <aside class="chat-dock" id="chatDock">
-      <header class="chat-head">
-        <div>
-          <strong>AI 어시스턴트</strong>
-          <span class="chat-ctx" id="chatContext">현재 실적 파악</span>
-        </div>
-        <button class="icon-btn" id="chatClose" title="닫기">×</button>
-      </header>
-      <div class="chat-tabs">
-        <button class="chat-tab active" data-pane="chat">채팅</button>
-        <button class="chat-tab" data-pane="insights">인사이트 축적소 <span id="insightCount">0</span></button>
-      </div>
-
-      <div class="chat-pane active" id="pane-chat">
-        <div class="chat-log" id="chatLog"></div>
-        <div class="chat-suggest" id="chatSuggest"></div>
-        <form class="chat-form" id="chatForm">
-          <input type="text" id="chatInput" placeholder="예: 이번 달 어때? / 다음 이벤트 뭐로 할까?" autocomplete="off">
-          <button class="btn small" type="submit">보내기</button>
-        </form>
-        <p class="chat-note">로컬 규칙 기반 프로토타입 — 실제 데이터를 계산해 답변합니다 (외부 LLM 미연동)</p>
-      </div>
-
-      <div class="chat-pane" id="pane-insights">
-        <form class="chat-form" id="insightForm">
-          <input type="text" id="insightInput" placeholder="직접 인사이트 추가" autocomplete="off">
-          <button class="btn small" type="submit">추가</button>
-        </form>
-        <div class="insight-list" id="insightList"></div>
-      </div>
-    </aside>
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
@@ -348,7 +314,6 @@
   <script src="js/charts.js"></script>
   <script src="js/perf.js"></script>
   <script src="js/compare.js"></script>
-  <script src="js/chat.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

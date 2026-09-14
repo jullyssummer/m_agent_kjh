@@ -4,7 +4,6 @@
   const { fmt, util } = BTV;
   const el = (id) => document.getElementById(id);
   let month = BTV.util.monthOf(BTV.LAST_DATA_DAY);
-  let summaryText = '';
   let segUi = 'all';
   let segMetric = 'all';
   const segPeriods = new Set(BTV.months.slice(-2)); // 기본값: 전월 + 당월(전일 기준)
@@ -136,9 +135,7 @@
   }
 
   function renderSummary() {
-    const { html, text } = buildSummary();
-    summaryText = text;
-    el('weeklySummary').innerHTML = html;
+    el('weeklySummary').innerHTML = buildSummary().html;
   }
 
   /* ---------- 월간 그래프 ---------- */
@@ -488,11 +485,35 @@
     });
     const daysOf = (rows) => (rows.length ? rows[0].days : 1);
 
+    // UI 그룹 × 기간 × 지표 단위로 SEG 값의 최소~최대를 잡는다.
+    // 그룹마다 규모가 달라(전체 vs 540 이하) 한 스케일로 묶으면 작은 그룹이 전부 흐려진다.
+    const heat = {};
+    uiGroups.forEach((ui) =>
+      periods.forEach((period) =>
+        metrics.forEach((metric) => {
+          const values = BTV.SEG_LIST.map((seg) => segValue(stats[ui][period], seg, metric)).filter(
+            (v) => v != null && !Number.isNaN(v)
+          );
+          if (values.length > 1) {
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            if (max > min) heat[`${ui}|${period}|${metric}`] = { min, max };
+          }
+        })
+      )
+    );
+
     const metricCells = (ui, period, seg) =>
       metrics
         .map((metric, i) => {
           const value = segValue(stats[ui][period], seg, metric);
-          return `<td class="num${i === 0 ? ' group-start' : ''}">${SEG_METRICS[metric].fmt(value)}</td>`;
+          const scale = seg === '합계' ? null : heat[`${ui}|${period}|${metric}`];
+          let style = '';
+          if (scale && value != null) {
+            const norm = (value - scale.min) / (scale.max - scale.min);
+            style = ` style="background: rgba(13,91,209,${(0.03 + norm * 0.27).toFixed(3)})"`;
+          }
+          return `<td class="num${i === 0 ? ' group-start' : ''}"${style}>${SEG_METRICS[metric].fmt(value)}</td>`;
         })
         .join('');
 
@@ -693,13 +714,6 @@
     el('saveTarget').addEventListener('click', () => {
       Store.setTarget(month, Number(el('targetPaid').value) || 0, Number(el('targetCoupon').value) || 0);
       render();
-    });
-    el('saveSummary').addEventListener('click', () => {
-      const ok = Store.addInsight(summaryText, [util.monthLabel(month), '주간요약'], 'summary');
-      el('saveSummary').textContent = ok ? '저장됨' : '이미 저장됨';
-      setTimeout(() => {
-        el('saveSummary').textContent = '인사이트로 저장';
-      }, 1500);
     });
     el('commentForm').addEventListener('submit', (e) => {
       e.preventDefault();

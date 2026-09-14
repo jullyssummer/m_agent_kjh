@@ -2,7 +2,7 @@
   'use strict';
 
   const KEY = 'btvDashboard.v1';
-  const initial = { comments: [], insights: [], targets: {}, uploads: {}, memos: {} };
+  const initial = { comments: [], targets: {}, uploads: {}, memos: {} };
 
   function load() {
     try {
@@ -68,23 +68,6 @@
     },
     commentsOf(month) {
       return state.comments.filter((c) => c.month === month);
-    },
-    addInsight(text, tags, source) {
-      const exists = state.insights.some((i) => i.text === text);
-      if (exists) return false;
-      state.insights.unshift({ id: uid(), text, tags: tags || [], source: source || 'chat', at: now() });
-      save();
-      return true;
-    },
-    removeInsight(id) {
-      state.insights = state.insights.filter((i) => i.id !== id);
-      save();
-    },
-    searchInsights(keywords) {
-      if (!keywords || !keywords.length) return state.insights;
-      return state.insights.filter((i) =>
-        keywords.some((k) => i.text.includes(k) || i.tags.some((t) => t.includes(k)))
-      );
     },
     setTarget(month, paid, coupon) {
       state.targets[month] = { paid, coupon };
