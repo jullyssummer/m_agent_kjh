@@ -20,7 +20,7 @@
 
 body {
   margin: 0;
-  font-family: 'Gowun Dodum', 'Malgun Gothic', system-ui, sans-serif;
+  font-family: 'Malgun Gothic', '맑은 고딕', AppleSDGothicNeo-Regular, 'Apple SD Gothic Neo', system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 14px;

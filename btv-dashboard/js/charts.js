@@ -18,7 +18,7 @@
       if (!chart.$showLabels) return;
       const { ctx } = chart;
       ctx.save();
-      ctx.font = '700 10px "Gowun Dodum", sans-serif';
+      ctx.font = '700 10px "Malgun Gothic", sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.lineJoin = 'round';
@@ -151,7 +151,7 @@
         ctx.arc(x0 + RIBBON_H / 2, y, 6, 0, Math.PI * 2);
         ctx.fillStyle = b.planned ? b.color : '#fff';
         ctx.fill();
-        ctx.font = '700 9px "Gowun Dodum", sans-serif';
+        ctx.font = '700 9px "Malgun Gothic", sans-serif';
         ctx.textAlign = 'center';
         ctx.fillStyle = b.planned ? '#fff' : b.color;
         ctx.fillText(String(b.no), x0 + RIBBON_H / 2, y + 0.5);
@@ -160,7 +160,7 @@
         const textX = x0 + RIBBON_H + 3;
         const room = x0 + width - textX - 6;
         if (room > 28) {
-          ctx.font = '700 10px "Gowun Dodum", sans-serif';
+          ctx.font = '700 10px "Malgun Gothic", sans-serif';
           ctx.textAlign = 'left';
           ctx.fillStyle = b.planned ? b.color : '#fff';
           let text = b.label;
@@ -174,7 +174,7 @@
   };
 
   Chart.register(restDays, valueLabels, eventBands);
-  Chart.defaults.font.family = '"Gowun Dodum", "Malgun Gothic", sans-serif';
+  Chart.defaults.font.family = '"Malgun Gothic", sans-serif';
   Chart.defaults.color = '#6b7688';
   Chart.defaults.maintainAspectRatio = false;
 
