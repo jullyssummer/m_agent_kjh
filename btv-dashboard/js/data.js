@@ -108,6 +108,12 @@
   const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
   const dayName = (date) => DAY_NAMES[toDate(date).getDay()];
 
+  // 이벤트는 끊어진 여러 구간을 가질 수 있다. periods가 없으면 단일 구간으로 본다.
+  const periodsOf = (ev) =>
+    ev.periods && ev.periods.length ? ev.periods : [{ startDate: ev.startDate, endDate: ev.endDate }];
+  const covers = (ev, date) => periodsOf(ev).some((p) => p.startDate <= date && date <= p.endDate);
+  const overlapsRange = (ev, from, to) => periodsOf(ev).some((p) => p.startDate <= to && p.endDate >= from);
+
   const SEASON = { 1: 1.0, 2: 0.96, 3: 1.05, 4: 1.08, 5: 1.13, 6: 1.09, 7: 1.16, 8: 1.19, 9: 1.22, 10: 1.1, 11: 1.06, 12: 1.14 };
   function trendOf(monthKey) {
     const year = Number(monthKey.slice(0, 4));
@@ -223,7 +229,7 @@
     const basePaid = 268 * trend * dow * between(0.94, 1.06);
     const baseCoupon = basePaid * between(0.4, 0.48);
 
-    const active = events.filter((ev) => ev.startDate <= date && date <= ev.endDate);
+    const active = events.filter((ev) => covers(ev, date));
     const liftSum = active.reduce((s, ev) => s + ev.lift, 0);
     const paid = basePaid * (1 + liftSum);
     const coupon = baseCoupon * (1 + liftSum * 1.35);
@@ -403,7 +409,7 @@
   // 업로드 데이터에는 이벤트 진행일 표시가 없어 이벤트 목록으로 다시 채운다
   function recomputeEventDays() {
     state.days.forEach((d) => {
-      d.eventIds = state.events.filter((e) => e.startDate <= d.date && d.date <= e.endDate).map((e) => e.id);
+      d.eventIds = state.events.filter((e) => covers(e, d.date)).map((e) => e.id);
     });
   }
 
@@ -447,22 +453,23 @@
 
   function eventMetrics(ev) {
     const asOf = lastDay();
-    const totalDays = daysBetween(ev.startDate, ev.endDate);
+    // 한 이벤트가 끊어진 여러 구간으로 진행될 수 있다 (예: 8/31~9/6 + 9/10~9/13 = 11일)
+    const periods = periodsOf(ev);
+    const allDates = periods.flatMap((p) => eachDay(p.startDate, p.endDate));
+    const totalDays = allDates.length;
     // 진행 중인 이벤트는 계획 기간이 아니라 경과일로 나눠야 과거 이벤트와 같은 기준이 된다
-    const measuredEnd = ev.endDate <= asOf ? ev.endDate : asOf;
-    const measured = ev.startDate <= measuredEnd ? eachDay(ev.startDate, measuredEnd) : [];
+    const measured = allDates.filter((d) => d <= asOf);
     const elapsedDays = measured.length;
     // 휴일 = 토·일·공휴일
     const elapsedRestDays = measured.filter(isRestDay).length;
     const elapsedWeekdayDays = elapsedDays - elapsedRestDays;
-    let restDays = 0;
-    eachDay(ev.startDate, ev.endDate).forEach((d) => {
-      if (isRestDay(d)) restDays += 1;
-    });
+    const restDays = allDates.filter(isRestDay).length;
     const weekdayDays = totalDays - restDays;
     const signups = ev.signups;
     const has = signups != null;
-    const status = ev.endDate <= asOf ? '종료' : ev.startDate <= asOf ? '진행중' : '예정';
+    const lastEnd = periods[periods.length - 1].endDate;
+    const firstStart = periods[0].startDate;
+    const status = lastEnd <= asOf ? '종료' : firstStart <= asOf ? '진행중' : '예정';
     return {
       ...ev,
       status,
@@ -506,7 +513,7 @@
     }
     const base = baselineBefore(ev.startDate);
     return state.days
-      .filter((d) => d.date >= ev.startDate && d.date <= ev.endDate)
+      .filter((d) => covers(ev, d.date))
       .map((d) => {
         const baseline = base ? (d.rest ? base.rest : base.weekday) : 0;
         const total = d.paid + d.coupon;
@@ -548,7 +555,7 @@
     );
     const otherEventDays = tail.filter((d) => d.eventIds && d.eventIds.length).length;
     const overlapping = state.events.filter(
-      (e) => e.id !== ev.id && e.startDate <= ev.endDate && e.endDate >= ev.startDate
+      (e) => e.id !== ev.id && overlapsRange(e, ev.startDate, ev.endDate)
     ).length;
 
     return {
@@ -598,7 +605,8 @@
     return allEvents().filter((e) => e.signups != null);
   }
   function eventsOfMonth(month) {
-    return allEvents().filter((e) => monthOf(e.startDate) === month || monthOf(e.endDate) === month);
+    const last = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+    return allEvents().filter((e) => overlapsRange(e, `${month}-01`, `${month}-${String(last).padStart(2, '0')}`));
   }
 
   function monthStats(month) {
@@ -763,6 +771,8 @@
     doneEvents,
     eventsOfMonth,
     eventMetrics,
+    periodsOf,
+    covers,
     monthStats,
     segStats,
     anomaly,

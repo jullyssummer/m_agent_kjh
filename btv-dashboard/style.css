@@ -192,6 +192,15 @@ td.num { font-variant-numeric: tabular-nums; }
 .day-key i.weekend { background: rgba(20, 32, 60, .16); }
 .day-key i.holiday { background: rgba(217, 79, 61, .28); }
 
+tr.expandable { cursor: pointer; }
+tr.expandable:hover { background: #eef4ff; }
+tr.expandable .caret { display: inline-block; width: 12px; color: var(--brand); font-size: 11px; }
+tr.period-row td { background: #f8fafc; color: var(--muted); }
+.period-no {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 4px;
+  background: #fff; border: 1px solid var(--line); font-size: 11px;
+}
+
 .event-no {
   display: inline-flex; align-items: center; justify-content: center;
   width: 20px; height: 20px; border-radius: 50%;

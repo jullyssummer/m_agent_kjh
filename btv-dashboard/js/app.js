@@ -124,8 +124,35 @@
       .filter((r) => r.date);
   }
 
+  // 같은 이벤트가 끊어진 여러 구간으로 진행되면 CSV에 여러 행으로 나온다.
+  // 이벤트명(또는 ID) 기준으로 한 건으로 묶고, 구간과 실적을 합친다.
+  function groupPeriods(list) {
+    const byKey = new Map();
+    list.forEach((row) => {
+      const key = row.id.startsWith('UP-') ? row.name : row.id;
+      const prev = byKey.get(key);
+      if (!prev) {
+        byKey.set(key, { ...row, periods: [{ startDate: row.startDate, endDate: row.endDate }] });
+        return;
+      }
+      prev.periods.push({ startDate: row.startDate, endDate: row.endDate });
+      prev.periods.sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
+      prev.startDate = prev.periods[0].startDate;
+      prev.endDate = prev.periods[prev.periods.length - 1].endDate;
+      // 실적·예산은 구간별로 쌓이는 값이라 더하고, 모수는 같은 대상일 수 있어 최댓값을 쓴다
+      ['signups', 'paidSignups', 'couponSignups', 'restSignups', 'weekdaySignups', 'entrants', 'prizeCount', 'winners', 'actualReceivers', 'prizePurchaseCost', 'actualBudget'].forEach((k) => {
+        if (row[k] == null) return;
+        prev[k] = (prev[k] || 0) + row[k];
+      });
+      prev.pool = Math.max(prev.pool || 0, row.pool || 0);
+      prev.status = prev.endDate <= BTV.LAST_DATA_DAY ? '종료' : prev.startDate <= BTV.LAST_DATA_DAY ? '진행중' : '예정';
+    });
+    return [...byKey.values()];
+  }
+
   function buildEvents(rows) {
-    return rows
+    return groupPeriods(
+      rows
       .map((r, i) => {
         const startDate = toDate(val(r, EVENT_ALIAS.startDate));
         const endDate = toDate(val(r, EVENT_ALIAS.endDate));
@@ -169,7 +196,8 @@
           status: endDate <= BTV.LAST_DATA_DAY ? '종료' : startDate <= BTV.LAST_DATA_DAY ? '진행중' : '예정',
         };
       })
-      .filter(Boolean);
+      .filter(Boolean)
+    );
   }
 
   function note(html) {

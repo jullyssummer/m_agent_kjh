@@ -172,20 +172,23 @@
     const bands = months
       .flatMap((m) => BTV.eventsOfMonth(m))
       .filter((ev, i, arr) => arr.findIndex((x) => x.id === ev.id) === i)
-      .map((ev, i) => {
-        const from = dates.indexOf(ev.startDate < dates[0] ? dates[0] : ev.startDate);
-        const to = dates.indexOf(ev.endDate > dates[dates.length - 1] ? dates[dates.length - 1] : ev.endDate);
-        if (from < 0 || to < 0) return null;
+      // 끊어진 구간은 리본도 따로 그린다 (같은 번호·같은 색)
+      .flatMap((ev, i) => {
         const color = eventColor(i);
-        return {
-          from,
-          to,
-          no: i + 1,
-          color,
-          tint: `${color}12`,
-          planned: ev.status === '예정',
-          label: `${ev.name.replace(/^\d+년 \d+월 /, '')} · ${offerLabel(ev)}`,
-        };
+        return BTV.periodsOf(ev).map((p) => {
+          const from = dates.indexOf(p.startDate < dates[0] ? dates[0] : p.startDate);
+          const to = dates.indexOf(p.endDate > dates[dates.length - 1] ? dates[dates.length - 1] : p.endDate);
+          if (from < 0 || to < 0) return null;
+          return {
+            from,
+            to,
+            no: i + 1,
+            color,
+            tint: `${color}12`,
+            planned: ev.status === '예정',
+            label: `${ev.name.replace(/^\d+년 \d+월 /, '')} · ${offerLabel(ev)}`,
+          };
+        });
       })
       .filter(Boolean);
 
@@ -339,10 +342,17 @@
       <tbody>${
         list.length
           ? list
-              .map(
-                (e, i) => `<tr>
+              .map((e, i) => {
+                const periods = BTV.periodsOf(e);
+                const multi = periods.length > 1;
+                // 구간이 끊어진 이벤트는 합산 행을 위에 두고, 펼치면 구간별로 보여준다
+                const head = `<tr${multi ? ` class="expandable" data-expand="${e.id}"` : ''}>
         <td class="left"><span class="event-no" style="background:${eventColor(i)}">${i + 1}</span></td>
-        <td class="left">${fmt.date(e.startDate)} ~ ${fmt.date(e.endDate)} <span class="hint">(${e.totalDays}일)</span></td>
+        <td class="left">${
+          multi
+            ? `<span class="caret">▸</span> ${periods.length}개 구간 합산 <span class="hint">(총 ${e.totalDays}일)</span>`
+            : `${fmt.date(e.startDate)} ~ ${fmt.date(e.endDate)} <span class="hint">(${e.totalDays}일)</span>`
+        }</td>
         <td class="left">${e.name}</td>
         <td class="left">${e.type}</td>
         <td class="num">${e.discountRate}%</td>
@@ -350,8 +360,21 @@
         <td class="num">${e.prizeUnitPrice ? fmt.manwon(e.prizeUnitPrice) : '-'}</td>
         <td class="num">${fmt.num(e.pool)}</td>
         <td class="left">${statusTag(e.status)}</td>
-      </tr>`
-              )
+      </tr>`;
+                if (!multi) return head;
+                const children = periods
+                  .map((p, pi) => {
+                    const days = util.eachDay(p.startDate, p.endDate);
+                    const restDays = days.filter(util.isRestDay).length;
+                    return `<tr class="period-row" data-child="${e.id}" hidden>
+          <td class="left"></td>
+          <td class="left"><span class="period-no">${pi + 1}차</span> ${fmt.date(p.startDate)} ~ ${fmt.date(p.endDate)} <span class="hint">(${days.length}일 · 휴일 ${restDays}일)</span></td>
+          <td class="left hint" colspan="7">${e.name} ${pi + 1}차 구간</td>
+        </tr>`;
+                  })
+                  .join('');
+                return head + children;
+              })
               .join('')
           : '<tr><td colspan="9" class="left">해당 월 이벤트가 없습니다.</td></tr>'
       }</tbody>`;
@@ -381,7 +404,7 @@
                 (e) => `<tr>
         <td class="left"><span class="tag">${e.purpose || '-'}</span></td>
         <td class="left">${e.name}${e.inFlight ? ` <span class="tag live">진행중 ${e.elapsedDays}/${e.totalDays}일</span>` : ''}</td>
-        <td class="left">${fmt.date(e.startDate)} ~ ${fmt.date(e.endDate)} (${e.totalDays}일)</td>
+        <td class="left">${fmt.date(e.startDate)} ~ ${fmt.date(e.endDate)} (${BTV.periodsOf(e).length > 1 ? `${BTV.periodsOf(e).length}개 구간 · ` : ''}${e.totalDays}일)</td>
         <td class="left">${e.type}</td>
         <td class="num">${e.discountRate}%</td>
         <td class="num">${fmt.num(e.pool)}</td>
@@ -710,6 +733,18 @@
     el('campaignTable').addEventListener('change', (e) => {
       const id = e.target.dataset.memo;
       if (id) Store.setMemo(id, e.target.value.trim());
+    });
+    el('eventPlanTable').addEventListener('click', (e) => {
+      const row = e.target.closest('[data-expand]');
+      if (!row) return;
+      const id = row.dataset.expand;
+      const open = row.classList.toggle('open');
+      row.querySelector('.caret').textContent = open ? '▾' : '▸';
+      el('eventPlanTable')
+        .querySelectorAll(`[data-child="${id}"]`)
+        .forEach((child) => {
+          child.hidden = !open;
+        });
     });
     el('saveTarget').addEventListener('click', () => {
       Store.setTarget(month, Number(el('targetPaid').value) || 0, Number(el('targetCoupon').value) || 0);
