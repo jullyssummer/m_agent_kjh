@@ -53,6 +53,8 @@
     unitPrice: ['unit_price', '경품단가', '경품 단가'],
     count: ['count', 'prize_count', '경품수량', '경품 수량'],
     winners: ['winners', '당첨자수', '당첨자 수'],
+    winnerPick: ['winner_pick', '당첨자선정방식', '당첨자 선정 방식'],
+    entrants: ['entrants', '응모자수', '응모자 수'],
     receivers: ['receivers', '실수령자수', '실수령자 수', '수령자 수'],
     purchaseCost: ['purchase_cost', '경품구매비', '경품 구매비'],
     actualBudget: ['actual_budget', '실예산'],
@@ -62,25 +64,14 @@
     name: ['name', 'event_name', '이벤트명'],
     purpose: ['purpose', '구분', '목적'],
     couponPolicy: ['coupon_policy', '쿠폰정책명', '쿠폰 정책명'],
-    prizeMethod: ['prize_method', '경품방식', '경품 방식'],
-    prizeForm: ['prize_form', '경품유형', '경품 유형'],
-    winnerPick: ['winner_pick', '당첨자선정방식', '당첨자 선정 방식'],
     paidSignups: ['paid_signups', '유료가입자수', '유료 가입자 수'],
     couponSignups: ['coupon_signups', '쿠폰가입자수', '쿠폰 가입자 수'],
     type: ['type', '이벤트타입', '타입', '이벤트종류', '이벤트 종류'],
     discountRate: ['discount_rate', '할인율'],
-    prizeKind: ['prize_kind', '경품종류', '경품 종류'],
-    prizeUnitPrice: ['prize_unit_price', '경품단가', '경품 단가'],
     startDate: ['start_date', '시작일'],
     endDate: ['end_date', '종료일'],
     pool: ['pool', '모수'],
     signups: ['signups', '가입자수', '가입자 수'],
-    entrants: ['entrants', '응모자수', '응모자 수'],
-    prizeCount: ['prize_count', '경품수량', '경품 수량'],
-    winners: ['winners', '당첨자수', '당첨자 수'],
-    actualReceivers: ['actual_receivers', '실수령자수', '실수령자 수'],
-    prizePurchaseCost: ['prize_purchase_cost', '경품구매비', '경품 구매비'],
-    actualBudget: ['actual_budget', '실예산'],
   };
 
   const val = (row, aliases) => {
@@ -143,6 +134,8 @@
           unitPrice,
           count,
           winners: toNum(val(r, PRIZE_ALIAS.winners)) != null ? toNum(val(r, PRIZE_ALIAS.winners)) : count,
+          winnerPick: val(r, PRIZE_ALIAS.winnerPick) || '-',
+          entrants: toNum(val(r, PRIZE_ALIAS.entrants)),
           receivers: receivers != null ? receivers : count,
           purchaseCost: toNum(val(r, PRIZE_ALIAS.purchaseCost)) != null ? toNum(val(r, PRIZE_ALIAS.purchaseCost)) : count * unitPrice,
           actualBudget: toNum(val(r, PRIZE_ALIAS.actualBudget)) != null ? toNum(val(r, PRIZE_ALIAS.actualBudget)) : (receivers != null ? receivers : count) * unitPrice,
@@ -177,7 +170,7 @@
       prev.startDate = prev.periods[0].startDate;
       prev.endDate = prev.periods[prev.periods.length - 1].endDate;
       // 실적·예산은 구간별로 쌓이는 값이라 더하고, 모수는 같은 대상일 수 있어 최댓값을 쓴다
-      ['signups', 'paidSignups', 'couponSignups', 'restSignups', 'weekdaySignups', 'entrants', 'prizeCount', 'winners', 'actualReceivers', 'prizePurchaseCost', 'actualBudget'].forEach((k) => {
+      ['signups', 'paidSignups', 'couponSignups', 'restSignups', 'weekdaySignups'].forEach((k) => {
         if (row[k] == null) return;
         prev[k] = (prev[k] || 0) + row[k];
       });
@@ -209,27 +202,16 @@
           name: val(r, EVENT_ALIAS.name) || `업로드 이벤트 ${i + 1}`,
           type: val(r, EVENT_ALIAS.type) || '할인',
           discountRate: toNum(val(r, EVENT_ALIAS.discountRate)) || 0,
-          prizeKind: val(r, EVENT_ALIAS.prizeKind) || '없음',
-          prizeUnitPrice: toNum(val(r, EVENT_ALIAS.prizeUnitPrice)) || 0,
           startDate,
           endDate,
           purpose: val(r, EVENT_ALIAS.purpose) || '-',
           couponPolicy: val(r, EVENT_ALIAS.couponPolicy) || '-',
-          prizeMethod: val(r, EVENT_ALIAS.prizeMethod) || '없음',
-          prizeForm: val(r, EVENT_ALIAS.prizeForm) || '-',
-          winnerPick: val(r, EVENT_ALIAS.winnerPick) || '-',
           paidSignups: toNum(val(r, EVENT_ALIAS.paidSignups)),
           couponSignups: toNum(val(r, EVENT_ALIAS.couponSignups)),
           pool: toNum(val(r, EVENT_ALIAS.pool)) || 0,
           signups,
           restSignups: signups != null && share ? Math.round((signups * restUnits) / share) : null,
           weekdaySignups: signups != null && share ? Math.round((signups * weekdayDays) / share) : null,
-          entrants: toNum(val(r, EVENT_ALIAS.entrants)),
-          prizeCount: toNum(val(r, EVENT_ALIAS.prizeCount)),
-          winners: toNum(val(r, EVENT_ALIAS.winners)) || toNum(val(r, EVENT_ALIAS.prizeCount)),
-          actualReceivers: toNum(val(r, EVENT_ALIAS.actualReceivers)),
-          prizePurchaseCost: toNum(val(r, EVENT_ALIAS.prizePurchaseCost)),
-          actualBudget: toNum(val(r, EVENT_ALIAS.actualBudget)),
           status: endDate <= BTV.LAST_DATA_DAY ? '종료' : startDate <= BTV.LAST_DATA_DAY ? '진행중' : '예정',
         };
       })
@@ -265,23 +247,17 @@
           e.type,
           e.discountRate,
           e.couponPolicy,
-          e.prizeMethod,
-          e.prizeForm,
-          e.prizeKind,
-          e.prizeUnitPrice,
           p.startDate,
           p.endDate,
           i === 0 ? e.pool : '',
           i === 0 ? e.paidSignups : '',
           i === 0 ? e.couponSignups : '',
-          i === 0 ? e.entrants : '',
-          e.winnerPick,
         ])
       );
       files.push([
         `btv_02_캠페인_${stamp}.csv`,
         csvOf(
-          ['이벤트명', '구분', '이벤트 종류', '할인율', '쿠폰 정책명', '경품 방식', '경품 유형', '경품 종류', '경품 단가', '시작일', '종료일', '모수', '유료 가입자 수', '쿠폰 가입자 수', '응모자 수', '당첨자 선정 방식'],
+          ['이벤트명', '구분', '이벤트 종류', '할인율', '쿠폰 정책명', '시작일', '종료일', '모수', '유료 가입자 수', '쿠폰 가입자 수'],
           rows
         ),
       ]);
@@ -301,7 +277,7 @@
       files.push([
         `btv_04_경품_${stamp}.csv`,
         csvOf(
-          ['이벤트명', '등급', '경품 종류', '경품 유형', '경품 단가', '경품 수량', '당첨자 수', '실수령자 수', '경품 구매비', '실예산'],
+          ['이벤트명', '등급', '경품 종류', '경품 유형', '경품 단가', '경품 수량', '당첨자 선정 방식', '응모자 수', '당첨자 수', '실수령자 수', '경품 구매비', '실예산'],
           prizes.map((r) => [
             nameOf.get(r.event) || r.event,
             r.rank,
@@ -309,6 +285,8 @@
             r.form,
             r.unitPrice,
             r.count,
+            r.winnerPick,
+            r.entrants,
             r.winners,
             r.receivers,
             r.purchaseCost,
@@ -445,10 +423,10 @@
   }
 
   const PRIZE_SAMPLE = [
-    '이벤트명,등급,경품 종류,경품 유형,경품 단가,경품 수량,당첨자 수,실수령자 수,경품 구매비,실예산',
-    '9월 추석 연휴 특가,1,숙박권,실물,100000,50,50,41,5000000,4100000',
-    '9월 추석 연휴 특가,2,상품권,디지털,20000,300,300,246,6000000,4920000',
-    '9월 추석 연휴 특가,3,티켓,디지털,10000,1000,1000,742,10000000,7420000',
+    '이벤트명,등급,경품 종류,경품 유형,경품 단가,경품 수량,당첨자 선정 방식,응모자 수,당첨자 수,실수령자 수,경품 구매비,실예산',
+    '9월 추석 연휴 특가,1,숙박권,실물,100000,50,랜덤 추첨,8200,50,41,5000000,4100000',
+    '9월 추석 연휴 특가,2,상품권,디지털,20000,300,랜덤 추첨,8200,300,246,6000000,4920000',
+    '9월 추석 연휴 특가,3,티켓,디지털,10000,1000,랜덤 추첨,8200,1000,742,10000000,7420000',
   ].join('\n');
   const SEG_SAMPLE = [
     '월,UI구분,SEG,할당,사용',
@@ -458,9 +436,9 @@
   ].join('\n');
   const DAILY_SAMPLE = ['일자,유료신규,쿠폰가입', '2026-09-01,412,187', '2026-09-02,388,171', '2026-09-03,401,180'].join('\n');
   const EVENT_SAMPLE = [
-    '이벤트명,구분,이벤트 종류,할인율,쿠폰 정책명,경품 방식,경품 유형,경품 종류,경품 단가,시작일,종료일,모수,유료 가입자 수,쿠폰 가입자 수,응모자 수,경품 수량,당첨자 선정 방식,실수령자 수,경품 구매비,실예산',
-    '9월 추석 연휴 특가,유료 신규,할인+추첨경품,30,쿠폰 A형,추첨,디지털,상품권,20000,2026-09-05,2026-09-14,120000,2560,1280,8200,300,랜덤 추첨,246,6000000,4920000',
-    '9월 가을맞이 프로모션,유료+무료,할인+전원경품,20,쿠폰 B형,전원 지급,디지털,티켓,10000,2026-09-18,2026-09-24,95000,1480,730,,2210,전원 지급,1832,22100000,18320000',
+    '이벤트명,구분,이벤트 종류,할인율,쿠폰 정책명,시작일,종료일,모수,유료 가입자 수,쿠폰 가입자 수',
+    '9월 추석 연휴 특가,유료 신규,할인+추첨경품,30,쿠폰 A형,2026-09-05,2026-09-14,120000,2560,1280',
+    '9월 가을맞이 프로모션,유료+무료,할인+전원경품,20,쿠폰 B형,2026-09-18,2026-09-24,95000,1480,730',
   ].join('\n');
 
   const SAMPLES = {

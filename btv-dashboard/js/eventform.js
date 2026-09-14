@@ -24,6 +24,7 @@
       <label>유형<select class="z-form">${options(['디지털', '실물', '-'], p.form)}</select></label>
       <label>단가<input type="number" class="z-price" min="0" step="1000" value="${p.unitPrice || 0}"></label>
       <label>수량<input type="number" class="z-count" min="0" value="${p.count || 0}"></label>
+      <label>선정 방식<select class="z-pick">${options(['-', '랜덤 추첨', '선착순', '전원 지급'], p.winnerPick)}</select></label>
       <label>당첨자 수<input type="number" class="z-winners" min="0" value="${p.winners != null ? p.winners : ''}"></label>
       <label>실수령자 수<input type="number" class="z-receivers" min="0" value="${p.receivers != null ? p.receivers : ''}"></label>
       <label>구매비<input type="number" class="z-cost" min="0" step="1000" value="${p.purchaseCost != null ? p.purchaseCost : ''}"></label>
@@ -52,7 +53,6 @@
 
     el('ef-purpose').innerHTML = options(BTV.PURPOSES, ev ? ev.purpose : null);
     el('ef-type').innerHTML = options(BTV.TYPES, ev ? ev.type : null);
-    el('ef-winnerPick').innerHTML = options(['-', '랜덤 추첨', '선착순', '전원 지급'], ev ? ev.winnerPick : null);
 
     el('ef-name').value = ev ? ev.name : '';
     el('ef-discount').value = ev ? ev.discountRate : 0;
@@ -79,6 +79,8 @@
       .filter((p) => p.startDate && p.endDate)
       .sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
 
+    // 응모자 수는 이벤트에서 한 번 입력받아 각 등급에 같이 저장한다 (보통 응모 풀이 하나다)
+    const entrantsValue = el('ef-entrants').value === '' ? null : Number(el('ef-entrants').value);
     const prizes = [...el('ef-prizes').querySelectorAll('[data-prize-row]')]
       .map((row) => {
         const num = (cls) => {
@@ -95,6 +97,8 @@
           unitPrice,
           count,
           winners: num('.z-winners') != null ? num('.z-winners') : count,
+          winnerPick: row.querySelector('.z-pick').value,
+          entrants: entrantsValue,
           receivers: receivers != null ? receivers : count,
           purchaseCost: num('.z-cost') != null ? num('.z-cost') : count * unitPrice,
           actualBudget: num('.z-budget') != null ? num('.z-budget') : (receivers != null ? receivers : count) * unitPrice,
@@ -132,7 +136,6 @@
               ? '추첨'
               : '없음',
       prizeForm: lead ? lead.form : '-',
-      winnerPick: el('ef-winnerPick').value,
       discountRate: Number(el('ef-discount').value) || 0,
       prizeKind: lead ? lead.kind : '없음',
       prizeUnitPrice: lead ? lead.unitPrice : 0,
@@ -145,7 +148,7 @@
       signups,
       restSignups: signups != null && share ? Math.round((signups * restUnits) / share) : null,
       weekdaySignups: signups != null && share ? Math.round((signups * weekdayDays) / share) : null,
-      entrants: el('ef-entrants').value === '' ? null : Number(el('ef-entrants').value),
+      entrants: entrantsValue,
       prizes,
       status: '',
     };

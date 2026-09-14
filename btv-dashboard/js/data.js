@@ -124,6 +124,8 @@
         unitPrice: ev.prizeUnitPrice || 0,
         count: ev.prizeCount || 0,
         winners: ev.winners || 0,
+        winnerPick: ev.winnerPick || '-',
+        entrants: ev.entrants != null ? ev.entrants : null,
         receivers: ev.actualReceivers || 0,
         purchaseCost: ev.prizePurchaseCost || 0,
         actualBudget: ev.actualBudget || 0,
@@ -340,6 +342,8 @@
         const receivers = Math.round(count * receiveRate);
         prizes.push({
           rank,
+          entrants,
+          winnerPick: ev.winnerPick,
           kind: rank === 1 ? ev.prizeKind : pick(PRIZE_KINDS),
           form: '',
           unitPrice,
@@ -356,6 +360,8 @@
       ev.entrants = null;
       prizes.push({
         rank: 1,
+        entrants: null,
+        winnerPick: ev.winnerPick,
         kind: ev.prizeKind,
         form: '',
         unitPrice: ev.allPrizeUnitPrice,
@@ -505,8 +511,16 @@
     const firstStart = periods[0].startDate;
     const status = lastEnd <= asOf ? '종료' : firstStart <= asOf ? '진행중' : '예정';
 
-    // 경품 합산. 예전 단일 경품 형식으로 올라온 건은 1건짜리 목록으로 맞춘다
+    // 경품 합산. 응모자·당첨자 선정 방식도 경품 파일에서 온다.
     const prizes = prizesOf(ev);
+    const tierEntrants = prizes.map((p) => p.entrants).filter((v) => v != null);
+    // 모든 등급의 응모자가 같으면 하나의 응모 풀, 다르면 등급별 응모로 보고 합친다
+    const entrants = tierEntrants.length
+      ? tierEntrants.every((v) => v === tierEntrants[0])
+        ? tierEntrants[0]
+        : tierEntrants.reduce((a, b) => a + b, 0)
+      : ev.entrants || null;
+    const winnerPick = prizes.find((p) => p.winnerPick && p.winnerPick !== '-')?.winnerPick || ev.winnerPick || '-';
     const sumOf = (f) => (prizes.length ? prizes.reduce((s, p) => s + (f(p) || 0), 0) : null);
     const prizeCount = sumOf((p) => p.count);
     const winners = sumOf((p) => p.winners);
@@ -517,7 +531,7 @@
     // 등급별로도 응모자 전체가 대상이므로 경쟁률은 각 등급 수량으로 나눈다
     const prizeRows = prizes.map((p) => ({
       ...p,
-      competition: ev.entrants && p.count ? ev.entrants / p.count : null,
+      competition: (p.entrants != null ? p.entrants : entrants) && p.count ? (p.entrants != null ? p.entrants : entrants) / p.count : null,
       receiveRate: p.receivers != null && p.winners ? p.receivers / p.winners : null,
       budgetPerHead: p.actualBudget && signups ? p.actualBudget / signups : null,
       priceBand: p.unitPrice ? `${p.unitPrice / 10000}만원` : '없음',
@@ -547,6 +561,16 @@
       organicRatio: has && ev.paidSignups ? ev.couponSignups / ev.paidSignups : null,
       prizes: prizeRows,
       prizeTiers: prizes.length,
+      prizeMethod:
+        ev.prizeMethod ||
+        (hasAll(ev.type) && hasRaffle(ev.type)
+          ? '전원+추첨'
+          : hasAll(ev.type)
+            ? '전원 지급'
+            : hasRaffle(ev.type)
+              ? '추첨'
+              : '없음'),
+      prizeForm: lead ? lead.form : '-',
       prizeMix: prizes.length > 1 ? `복합 ${prizes.length}종` : prizes.length === 1 ? '단일' : '없음',
       prizeKind: lead ? lead.kind : ev.prizeKind,
       prizeUnitPrice: lead ? lead.unitPrice : ev.prizeUnitPrice,
@@ -555,10 +579,12 @@
       actualReceivers,
       prizePurchaseCost,
       actualBudget,
-      competition: ev.entrants && prizeCount ? ev.entrants / prizeCount : null,
-      entryRate: ev.entrants ? ev.entrants / ev.pool : null,
+      entrants,
+      winnerPick,
+      competition: entrants && prizeCount ? entrants / prizeCount : null,
+      entryRate: entrants ? entrants / ev.pool : null,
       receiveRate: actualReceivers != null && winners ? actualReceivers / winners : null,
-      costPerEntrant: actualBudget && ev.entrants ? actualBudget / ev.entrants : null,
+      costPerEntrant: actualBudget && entrants ? actualBudget / entrants : null,
       budgetPerHead: actualBudget && signups ? actualBudget / signups : null,
       budgetBand: budgetBandOf(actualBudget && signups ? actualBudget / signups : null),
       priceBand: lead && lead.unitPrice ? `${lead.unitPrice / 10000}만원` : '없음',
@@ -678,6 +704,8 @@
         prizePurchaseCost: p.purchaseCost,
         actualBudget: p.actualBudget,
         competition: p.competition,
+        entrants: p.entrants != null ? p.entrants : e.entrants,
+        winnerPick: p.winnerPick || e.winnerPick,
         receiveRate: p.receiveRate,
         budgetPerHead: p.budgetPerHead,
         eventId: e.id,
@@ -704,6 +732,8 @@
           unitPrice: r.unitPrice,
           count: r.count,
           winners: r.winners != null ? r.winners : r.count,
+          winnerPick: r.winnerPick || '-',
+          entrants: r.entrants != null ? r.entrants : null,
           receivers: r.receivers,
           purchaseCost: r.purchaseCost != null ? r.purchaseCost : r.count * r.unitPrice,
           actualBudget: r.actualBudget != null ? r.actualBudget : r.receivers * r.unitPrice,
