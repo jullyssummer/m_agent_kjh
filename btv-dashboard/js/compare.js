@@ -28,11 +28,11 @@
   };
 
   const METRICS = {
-    signups: { label: '가입자 수 (합계)', agg: 'sum', get: (e) => e.signups, fmt: (v) => fmt.num(v), better: 'high' },
-    rate: { label: '가입률 (평균)', agg: 'avg', get: (e) => e.rate, fmt: (v) => fmt.pct(v), better: 'high' },
+    signups: { label: '유료 신규 가입자 수 (합계)', agg: 'sum', get: (e) => e.signups, fmt: (v) => fmt.num(v), better: 'high' },
+    rate: { label: '가입률 (유료 기준, 평균)', agg: 'avg', get: (e) => e.rate, fmt: (v) => fmt.pct(v), better: 'high' },
     dailyRate: { label: '일평균 가입률 (평균)', agg: 'avg', get: (e) => e.dailyRate, fmt: (v) => fmt.pct(v, 3), better: 'high' },
-    restAvg: { label: '휴일 일평균 가입자 수', agg: 'avg', get: (e) => e.restAvg, fmt: (v) => fmt.num(v), better: 'high' },
-    weekdayAvg: { label: '평일 일평균 가입자 수', agg: 'avg', get: (e) => e.weekdayAvg, fmt: (v) => fmt.num(v), better: 'high' },
+    restAvg: { label: '휴일 일평균 유료 가입자 수', agg: 'avg', get: (e) => e.restAvg, fmt: (v) => fmt.num(v), better: 'high' },
+    weekdayAvg: { label: '평일 일평균 유료 가입자 수', agg: 'avg', get: (e) => e.weekdayAvg, fmt: (v) => fmt.num(v), better: 'high' },
     count: { label: '이벤트 수', agg: 'count', get: () => 1, fmt: (v) => fmt.num(v), better: 'high' },
     entrants: { label: '응모자 수 (합계)', agg: 'sum', get: (e) => e.entrants, fmt: (v) => fmt.num(v), better: 'high' },
     entryRate: { label: '응모율 (평균)', agg: 'avg', get: (e) => e.entryRate, fmt: (v) => fmt.pct(v), better: 'high' },
@@ -63,14 +63,17 @@
       better: 'low',
     },
     // 비교 카드 전용
-    dailyAvg: { label: '일평균 가입자 수', agg: 'avg', get: (e) => e.dailyAvg, fmt: (v) => fmt.num(v), better: 'high' },
-    paidSignups: { label: '유료 가입자 수', agg: 'avg', get: (e) => e.paidSignups, fmt: (v) => fmt.num(v), better: 'high' },
-    paidDailyAvg: { label: '일평균 유료 가입자 수', agg: 'avg', get: (e) => e.paidDailyAvg, fmt: (v) => fmt.num(v), better: 'high' },
+    dailyAvg: { label: '일평균 유료 가입자 수', agg: 'avg', get: (e) => e.dailyAvg, fmt: (v) => fmt.num(v), better: 'high' },
+    couponSignups: { label: '쿠폰 가입자 수 (합계)', agg: 'sum', get: (e) => e.couponSignups, fmt: (v) => fmt.num(v), better: 'high' },
+    couponDailyAvg: { label: '일평균 쿠폰 가입자 수', agg: 'avg', get: (e) => e.couponDailyAvg, fmt: (v) => fmt.num(v), better: 'high' },
+    couponShare: { label: '쿠폰 비중 (유료 대비, 평균)', agg: 'avg', get: (e) => e.couponShare, fmt: (v) => fmt.pct(v, 1), better: 'high' },
   };
 
   // 이벤트 단위 지표는 경품 등급으로 쪼개면 중복 집계되므로 단위별로 고를 수 있는 지표를 나눈다
   const EVENT_METRICS = [
     'signups',
+    'couponSignups',
+    'couponShare',
     'rate',
     'dailyRate',
     'restAvg',
@@ -175,7 +178,7 @@
     { g: 3, label: '일평균 유료 가입자 수', heat: true, get: (e) => fmt.num(e.paidDailyAvg), raw: (e) => e.paidDailyAvg },
     { g: 3, label: '일평균 평일 유료 가입자 수', get: (e) => fmt.num(e.paidWeekdayAvg), raw: (e) => e.paidWeekdayAvg },
     { g: 3, label: '일평균 휴일 유료 가입자 수', get: (e) => fmt.num(e.paidRestAvg), raw: (e) => e.paidRestAvg },
-    { g: 3, label: '오가닉 비율', heat: true, get: (e) => fmt.pct(e.organicRatio, 1), raw: (e) => e.organicRatio },
+    { g: 3, label: '쿠폰 비중', heat: true, get: (e) => fmt.pct(e.couponShare, 1), raw: (e) => e.couponShare },
     { g: 4, label: '경품 단가', get: (e) => (e.prizeUnitPrice ? fmt.manwon(e.prizeUnitPrice) : '-'), raw: (e) => e.prizeUnitPrice },
     { g: 4, label: '경품 개수', get: (e) => fmt.num(e.prizeCount), raw: (e) => e.prizeCount },
     { g: 4, label: '당첨자 선정 방식', left: true, get: (e) => e.winnerPick || '-', raw: (e) => e.winnerPick },
@@ -333,8 +336,8 @@
     const worst = byRate[byRate.length - 1];
     const avgRate = list.reduce((s, e) => s + e.rate, 0) / list.length;
     const budgetRows = list.filter((e) => e.budgetPerHead).sort((a, b) => a.budgetPerHead - b.budgetPerHead);
-    const organic = list.filter((e) => e.organicRatio != null);
-    const avgOrganic = organic.length ? organic.reduce((s, e) => s + e.organicRatio, 0) / organic.length : null;
+    const organic = list.filter((e) => e.couponShare != null);
+    const avgOrganic = organic.length ? organic.reduce((s, e) => s + e.couponShare, 0) / organic.length : null;
     const inFlight = list.filter((e) => e.inFlight);
     const avgBudget = budgetRows.length
       ? budgetRows.reduce((s, e) => s + e.budgetPerHead, 0) / budgetRows.length
@@ -358,8 +361,8 @@
         v: `인당 예산 최저 <b>${budgetRows[0].name}</b> ${fmt.won(budgetRows[0].budgetPerHead)}${budgetRows.length > 1 ? ` / 최고 ${budgetRows[budgetRows.length - 1].name} ${fmt.won(budgetRows[budgetRows.length - 1].budgetPerHead)}` : ''}`,
       },
       avgOrganic != null && {
-        k: '오가닉 비율',
-        v: `평균 <b>${fmt.pct(avgOrganic, 1)}</b> (쿠폰 가입자 ÷ 유료 가입자)`,
+        k: '쿠폰 비중',
+        v: `평균 <b>${fmt.pct(avgOrganic, 1)}</b> — 유료 신규 중 쿠폰으로 들어온 비율 (나머지는 오가닉)`,
       },
       inFlight.length && {
         k: '유의사항',
@@ -376,7 +379,7 @@
     const others = comparisonSet(base);
     const modeLabel = el('compareCount').value === 'all' ? '전체 평균' : `유사 ${others.length}건 평균`;
 
-    const cards = ['rate', 'dailyAvg', 'restAvg', 'weekdayAvg', 'paidSignups', 'paidDailyAvg'];
+    const cards = ['rate', 'dailyAvg', 'restAvg', 'weekdayAvg', 'couponSignups', 'couponDailyAvg'];
     el('compareCards').innerHTML = cards
       .map((key) => {
         const spec = METRICS[key];
@@ -411,7 +414,7 @@
           {
             label: '일평균 유료 가입자',
             type: 'line',
-            data: list.map((e) => Math.round(e.paidDailyAvg || 0)),
+            data: list.map((e) => Math.round(e.dailyAvg || 0)),
             borderColor: '#d94f3d',
             backgroundColor: '#d94f3d',
             yAxisID: 'y1',
@@ -437,9 +440,9 @@
     el('compareTable').innerHTML = `
       <thead><tr>
         <th class="left">구분</th><th class="left">이벤트명</th><th class="left">타입</th><th>할인율</th>
-        <th class="left">경품</th><th>모수</th><th>가입자 수</th><th>가입률</th><th>일평균 가입자</th>
-        <th>휴일 일평균 가입자</th><th>평일 일평균 가입자</th>
-        <th>유료 가입자 수</th><th>일평균 유료</th><th>일평균 휴일 유료</th><th>일평균 평일 유료</th>
+        <th class="left">경품</th><th>모수</th><th>유료 신규</th><th>가입률</th><th>일평균 유료</th>
+        <th>휴일 일평균 유료</th><th>평일 일평균 유료</th>
+        <th>쿠폰 가입자 수</th><th>일평균 쿠폰</th><th>일평균 휴일 쿠폰</th><th>일평균 평일 쿠폰</th>
       </tr></thead>
       <tbody>${[base, ...others]
         .map(
@@ -455,10 +458,10 @@
         <td class="num">${fmt.num(e.dailyAvg)}</td>
         <td class="num">${fmt.num(e.restAvg)}</td>
         <td class="num">${fmt.num(e.weekdayAvg)}</td>
-        <td class="num">${fmt.num(e.paidSignups)}</td>
-        <td class="num">${fmt.num(e.paidDailyAvg)}</td>
-        <td class="num">${fmt.num(e.paidRestAvg)}</td>
-        <td class="num">${fmt.num(e.paidWeekdayAvg)}</td>
+        <td class="num">${fmt.num(e.couponSignups)}</td>
+        <td class="num">${fmt.num(e.couponDailyAvg)}</td>
+        <td class="num">${fmt.num(e.couponRestAvg)}</td>
+        <td class="num">${fmt.num(e.couponWeekdayAvg)}</td>
       </tr>`
         )
         .join('')}</tbody>`;
@@ -470,13 +473,13 @@
       return;
     }
     const refRate = aggregate(others, 'rate');
-    const refPaidDaily = aggregate(others, 'paidDailyAvg');
+    const refCouponDaily = aggregate(others, 'couponDailyAvg');
     const refWeekend = aggregate(others, 'restAvg');
     const refWeekday = aggregate(others, 'weekdayAvg');
     const pct = (cur, ref) => (ref ? ((cur - ref) / ref) * 100 : null);
     const mark = (v) => (v == null ? '-' : `<b>${v >= 0 ? '+' : ''}${v.toFixed(1)}%</b>`);
     const rateDiff = pct(base.rate, refRate);
-    const paidDiff = pct(base.paidDailyAvg, refPaidDaily);
+    const couponDiff = pct(base.couponDailyAvg, refCouponDaily);
     const restGap = base.restAvg && base.weekdayAvg ? base.restAvg / base.weekdayAvg : null;
     const refGap = refWeekend && refWeekday ? refWeekend / refWeekday : null;
 
@@ -489,7 +492,7 @@
       { k: '가입률', v: `${fmt.pct(base.rate)} → 비교군 ${fmt.pct(refRate)} 대비 ${mark(rateDiff)}` },
       {
         k: '일평균 유료',
-        v: `${fmt.num(base.paidDailyAvg)}명 → 비교군 ${fmt.num(refPaidDaily)}명 대비 ${mark(paidDiff)}`,
+        v: `${fmt.num(base.couponDailyAvg)}명 → 비교군 ${fmt.num(refCouponDaily)}명 대비 ${mark(couponDiff)}` + ` · 유료 대비 비중 ${fmt.pct(base.couponShare, 1)}`,
       },
       {
         k: '휴일/평일',
@@ -624,7 +627,7 @@
       <div class="table-wrap"><table>
         <thead><tr>
           <th class="left">이벤트명</th><th class="left">경품</th><th class="left">기간</th><th>모수</th>
-          <th>가입자 수</th><th>가입률</th><th>경품 수량</th><th>인당 예산</th><th class="left">기준 이벤트로</th>
+          <th>유료 신규</th><th>가입률</th><th>경품 수량</th><th>인당 예산</th><th class="left">기준 이벤트로</th>
         </tr></thead>
         <tbody>${subset
           .map(
@@ -770,7 +773,7 @@
     el('seasonTable').innerHTML = `
       <thead><tr>
         <th class="left">구분</th><th class="left">이벤트명</th><th class="left">기간</th><th class="left">타입</th>
-        <th>할인율</th><th>모수</th><th>가입자 수</th><th>가입률</th><th>일평균</th><th>인당 예산</th>
+        <th>할인율</th><th>모수</th><th>유료 신규</th><th>가입률</th><th>일평균 유료</th><th>인당 예산</th>
       </tr></thead>
       <tbody>${
         list.length > 1
@@ -1126,9 +1129,9 @@
       <table class="onepager-table">
         ${row('오퍼', `할인 ${base.discountRate}%${base.prizeKind !== '없음' ? ` + ${base.prizeKind} ${base.priceBand} (${base.prizeMethod})` : ''}`)}
         ${row('쿠폰 정책', base.couponPolicy || '-')}
-        ${row('모수 / 가입자', `${fmt.num(base.pool)} → <b>${fmt.num(base.signups)}건</b> (가입률 ${fmt.pct(base.rate)})`)}
-        ${row('유료 / 쿠폰', `${fmt.num(base.paidSignups)} / ${fmt.num(base.couponSignups)} (오가닉 비율 ${fmt.pct(base.organicRatio, 1)})`)}
-        ${row('일평균', `전체 ${fmt.num(base.dailyAvg)} · 휴일 ${fmt.num(base.restAvg)} · 평일 ${fmt.num(base.weekdayAvg)}`)}
+        ${row('모수 / 유료 신규', `${fmt.num(base.pool)} → <b>${fmt.num(base.signups)}건</b> (가입률 ${fmt.pct(base.rate)})`)}
+        ${row('그중 쿠폰 가입', `${fmt.num(base.couponSignups)}건 (유료 대비 ${fmt.pct(base.couponShare, 1)}, 나머지는 오가닉)`)}
+        ${row('일평균 유료', `전체 ${fmt.num(base.dailyAvg)} · 휴일 ${fmt.num(base.restAvg)} · 평일 ${fmt.num(base.weekdayAvg)}`)}
         ${base.isRaffle ? row('응모 / 수령', `응모 ${fmt.num(base.entrants)}명 (응모율 ${fmt.pct(base.entryRate)}) · 경쟁률 ${base.competition ? base.competition.toFixed(1) : '-'}:1 · 수령률 ${fmt.pct(base.receiveRate, 1)}`) : ''}
         ${row('예산', `실예산 ${base.actualBudget ? fmt.manwon(base.actualBudget) : '-'} · 인당 ${base.budgetPerHead ? fmt.won(base.budgetPerHead) : '-'}`)}
         ${row('유사 이벤트 대비', refRate ? `가입률 ${fmt.pct(base.rate)} vs ${fmt.pct(refRate)} (${((base.rate - refRate) / refRate * 100).toFixed(1)}%)` : '-')}

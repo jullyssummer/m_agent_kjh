@@ -341,6 +341,30 @@ td .range { font-size: 10px; color: var(--muted); }
 }
 .modal-head h2 { margin: 0; font-size: 16px; }
 .modal-actions { display: flex; gap: 6px; align-items: center; }
+/* 업로드 체크리스트 */
+.badge {
+  display: inline-block; min-width: 30px; padding: 1px 6px; margin-left: 4px;
+  border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: -.2px;
+}
+.badge.ok { background: #e3f4ea; color: #1b7a44; }
+.badge.part { background: #fff2d6; color: #9a6a00; }
+.badge.none { background: #f1f3f7; color: #6b7590; }
+.data-panel { padding: 16px 20px 22px; }
+.data-panel .panel-lead { margin: 0 0 12px; }
+table.data-check { width: 100%; border-collapse: collapse; }
+table.data-check td { padding: 11px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.data-check tr:last-child td { border-bottom: 0; }
+table.data-check td.mark { width: 26px; text-align: center; font-size: 15px; font-weight: 700; color: #b9c0d0; }
+table.data-check tr.done td.mark { color: #1b7a44; }
+table.data-check tr.todo td.mark { color: #d08700; }
+table.data-check tr.todo { background: #fffaf0; }
+table.data-check { table-layout: fixed; }
+table.data-check td.status { width: 25%; }
+table.data-check td.status .warn { color: #c4491f; font-weight: 700; }
+table.data-check td.acts { width: 150px; }
+table.data-check .acts-wrap { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+table.data-check .hint { display: block; margin-top: 2px; }
+
 /* 직접 입력 폼 */
 .event-form { padding: 18px 22px 26px; }
 .form-section {

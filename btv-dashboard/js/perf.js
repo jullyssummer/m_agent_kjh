@@ -34,9 +34,10 @@
   function renderKpis() {
     const s = BTV.monthStats(month);
     const target = Store.targetOf(month);
-    const targetTotal = target.paid + target.coupon;
-    const progress = targetTotal ? s.total / targetTotal : 0;
-    const gap = targetTotal - s.total;
+    // 쿠폰 가입자는 유료 가입자에 포함된다 — 진척·갭은 모두 유료 신규 기준
+    const targetTotal = target.paid;
+    const progress = targetTotal ? s.paid / targetTotal : 0;
+    const gap = targetTotal - s.paid;
     const remainDays = s.totalDaysInMonth - s.elapsed;
     const needDaily = remainDays > 0 ? Math.max(0, gap) / remainDays : 0;
     const paceCls = progress >= s.elapsedRatio ? 'good' : 'warn';
@@ -51,13 +52,13 @@
         <div class="bar"><span style="width:${Math.min(100, target.paid ? (s.paid / target.paid) * 100 : 0)}%"></span></div>
       </div>
       <div class="kpi">
-        <div class="label">쿠폰 가입 (누적)</div>
+        <div class="label">쿠폰 가입 (누적) <span class="hint">유료 신규 중</span></div>
         <div class="value">${fmt.num(s.coupon)}</div>
-        <div class="sub">${hasTarget ? `목표 ${fmt.num(target.coupon)} · 달성률 ${fmt.pct(target.coupon ? s.coupon / target.coupon : 0, 1)}` : '목표 미입력'}</div>
+        <div class="sub">${target.coupon ? `목표 ${fmt.num(target.coupon)} · 달성률 ${fmt.pct(s.coupon / target.coupon, 1)} · ` : ''}유료 대비 비중 ${fmt.pct(s.couponShare, 1)}</div>
         <div class="bar"><span style="width:${Math.min(100, target.coupon ? (s.coupon / target.coupon) * 100 : 0)}%;background:var(--coupon)"></span></div>
       </div>
       <div class="kpi">
-        <div class="label">목표 대비 진척률</div>
+        <div class="label">목표 대비 진척률 <span class="hint">유료 기준</span></div>
         <div class="value">${hasTarget ? fmt.pct(progress, 1) : '-'}</div>
         <div class="sub ${hasTarget ? paceCls : ''}">${
           hasTarget
@@ -67,14 +68,14 @@
         <div class="bar"><span style="width:${hasTarget ? Math.min(100, progress * 100) : 0}%"></span></div>
       </div>
       <div class="kpi">
-        <div class="label">잔여 갭</div>
+        <div class="label">잔여 갭 <span class="hint">유료 신규 기준</span></div>
         <div class="value">${!hasTarget ? '-' : gap > 0 ? fmt.num(gap) : '목표 달성'}</div>
         <div class="sub">${!hasTarget ? '목표 미입력' : remainDays > 0 ? `잔여 ${remainDays}일 · 필요 일평균 ${fmt.num(needDaily)}건` : '집계 완료'}</div>
       </div>
       <div class="kpi">
-        <div class="label">일평균 가입자</div>
+        <div class="label">일평균 유료 가입자</div>
         <div class="value">${fmt.num(s.dailyAvg)}</div>
-        <div class="sub">${s.elapsed}일 집계 · 유료 ${fmt.num(s.paid / s.elapsed)} / 쿠폰 ${fmt.num(s.coupon / s.elapsed)}</div>
+        <div class="sub">${s.elapsed}일 집계 · 이 중 쿠폰 일평균 ${fmt.num(s.couponDailyAvg)}건</div>
       </div>`;
   }
 
@@ -99,13 +100,14 @@
     const last7 = series.slice(-7);
     const prev7 = series.slice(-14, -7);
     const sum = (list, k) => list.reduce((s, d) => s + d[k], 0);
-    const dailyAvg = (list) => (list.length ? (sum(list, 'paid') + sum(list, 'coupon')) / list.length : 0);
-    const cur = sum(last7, 'paid') + sum(last7, 'coupon');
-    const delta = prev7.length ? (dailyAvg(last7) - dailyAvg(prev7)) / dailyAvg(prev7) : 0;
+    // 쿠폰 가입자는 유료 가입자에 포함되므로 합치지 않고 각각 따로 본다
+    const dailyAvg = (list, k) => (list.length ? sum(list, k) / list.length : 0);
+    const delta = prev7.length && dailyAvg(prev7, 'paid') ? (dailyAvg(last7, 'paid') - dailyAvg(prev7, 'paid')) / dailyAvg(prev7, 'paid') : 0;
+    const couponDelta = prev7.length && dailyAvg(prev7, 'coupon') ? (dailyAvg(last7, 'coupon') - dailyAvg(prev7, 'coupon')) / dailyAvg(prev7, 'coupon') : 0;
     const s = BTV.monthStats(month);
     const target = Store.targetOf(month);
-    const targetTotal = target.paid + target.coupon;
-    const gap = targetTotal - s.total;
+    const targetTotal = target.paid;
+    const gap = targetTotal - s.paid;
     const remainDays = s.totalDaysInMonth - s.elapsed;
 
     const inWeek = BTV.eventsOfMonth(month).filter(
@@ -117,8 +119,9 @@
       .slice(0, 2);
 
     const lines = [
-      `최근 7일 가입자 <b>${fmt.num(cur)}건</b> (유료 ${fmt.num(sum(last7, 'paid'))} / 쿠폰 ${fmt.num(sum(last7, 'coupon'))}), 일평균 ${fmt.num(dailyAvg(last7))}건으로 직전 7일 대비 <b>${prev7.length ? (delta * 100).toFixed(1) + '%' : '-'}</b> ${delta >= 0 ? '증가' : '감소'}`,
-      `${util.monthLabel(month)} 누적 <b>${fmt.num(s.total)}건</b>, 목표 ${fmt.num(targetTotal)} 대비 진척률 <b>${fmt.pct(targetTotal ? s.total / targetTotal : 0, 1)}</b>${remainDays > 0 ? ` · 잔여 ${remainDays}일간 일평균 <b>${fmt.num(Math.max(0, gap) / remainDays)}건</b> 필요` : ''}`,
+      `최근 7일 <b>유료 신규 ${fmt.num(sum(last7, 'paid'))}건</b> (일평균 ${fmt.num(dailyAvg(last7, 'paid'))}건) — 직전 7일 대비 <b>${prev7.length ? (delta * 100).toFixed(1) + '%' : '-'}</b> ${delta >= 0 ? '증가' : '감소'}`,
+      `이 중 <b>쿠폰 가입 ${fmt.num(sum(last7, 'coupon'))}건</b> (일평균 ${fmt.num(dailyAvg(last7, 'coupon'))}건, 유료 대비 ${fmt.pct(sum(last7, 'paid') ? sum(last7, 'coupon') / sum(last7, 'paid') : 0, 1)}) — 직전 7일 대비 <b>${prev7.length ? (couponDelta * 100).toFixed(1) + '%' : '-'}</b> ${couponDelta >= 0 ? '증가' : '감소'}`,
+      `${util.monthLabel(month)} 누적 유료 <b>${fmt.num(s.paid)}건</b>(쿠폰 ${fmt.num(s.coupon)}건), 유료 목표 ${fmt.num(targetTotal)} 대비 진척률 <b>${fmt.pct(targetTotal ? s.paid / targetTotal : 0, 1)}</b>${remainDays > 0 ? ` · 잔여 ${remainDays}일간 일평균 <b>${fmt.num(Math.max(0, gap) / remainDays)}건</b> 필요` : ''}`,
     ];
     if (best) {
       lines.push(
@@ -280,7 +283,7 @@
   // 같은 일자끼리 겹쳐 월별 추이 모양을 비교한다 (월말에 전월 전체와 견주는 용도)
   function renderOverlayChart(months) {
     const series = el('overlaySeries').value;
-    const seriesLabel = { paid: '유료 신규', coupon: '쿠폰 가입', total: '유료+쿠폰 합계' }[series];
+    const seriesLabel = { paid: '유료 신규', coupon: '쿠폰 가입' }[series];
     const maxDay = Math.max(...months.map((m) => monthRange(m).length));
     const labels = Array.from({ length: maxDay }, (_, i) => `${i + 1}일`);
 
@@ -294,7 +297,7 @@
         data: labels.map((_, idx) => {
           const row = byDay.get(idx + 1);
           if (!row) return null;
-          return series === 'total' ? row.paid + row.coupon : row[series];
+          return row[series];
         }),
         borderColor: color,
         backgroundColor: `${color}1a`,
@@ -415,8 +418,8 @@
       <thead><tr>
         <th class="left">구분</th><th class="left">이벤트명</th><th class="left">일정</th>
         <th class="left">타입</th><th>할인율</th>
-        <th>모수</th><th>가입자 수</th><th>가입률</th>
-        <th>일평균</th><th>휴일 일평균</th><th>평일 일평균</th><th class="left">경품</th><th class="left">비고</th>
+        <th>모수</th><th>유료 신규</th><th>가입률</th>
+        <th>일평균 유료</th><th>휴일 일평균</th><th>평일 일평균</th><th class="left">경품</th><th class="left">비고</th>
       </tr></thead>
       <tbody>${
         list.length

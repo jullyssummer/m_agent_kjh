@@ -21,7 +21,7 @@
     <div class="actions">
       <label class="btn" for="csvInput">CSV 업로드</label>
       <input type="file" id="csvInput" accept=".csv,text/csv" hidden>
-      <button class="btn ghost" id="sampleBtn">샘플 양식</button>
+      <button class="btn ghost" id="dataBtn">데이터 현황 <span class="badge" id="dataBadge">0/4</span></button>
       <button class="btn ghost" id="exportBtn">데이터 내보내기</button>
     </div>
   </header>
@@ -90,7 +90,6 @@
                 <select id="overlaySeries">
                   <option value="paid">유료 신규</option>
                   <option value="coupon">쿠폰 가입</option>
-                  <option value="total">유료+쿠폰 합계</option>
                 </select>
               </label>
             </div>
@@ -241,9 +240,8 @@
               </label>
               <label>계열
                 <select id="curveSeries">
-                  <option value="total">전체 가입자</option>
-                  <option value="paid">유료</option>
-                  <option value="coupon">쿠폰</option>
+                  <option value="paid">유료 신규</option>
+                  <option value="coupon">쿠폰 가입</option>
                 </select>
               </label>
             </div>
@@ -324,9 +322,8 @@
           </p>
           <div id="ef-periods"></div>
 
-          <p class="form-section">실적 <span class="hint">비워두면 업로드한 raw에서 자동 집계합니다</span></p>
+          <p class="form-section">실적 <span class="hint">비워두면 업로드한 raw에서 자동 집계합니다 · 모수는 쿠폰 할당 내역에서 자동으로 잡힙니다</span></p>
           <div class="form-grid">
-            <label>모수 <span class="hint">비우면 쿠폰 할당에서 집계</span><input type="number" id="ef-pool" min="0"></label>
             <label>유료 가입자 수<input type="number" id="ef-paid" min="0"></label>
             <label>쿠폰 가입자 수<input type="number" id="ef-coupon" min="0"></label>
             <label>응모자 수<input type="number" id="ef-entrants" min="0"></label>
@@ -338,6 +335,21 @@
           <div id="ef-prizes"></div>
           <p class="form-error" id="ef-error" hidden></p>
         </form>
+      </div>
+    </div>
+
+    <!-- 업로드 체크리스트 (어떤 파일을 올렸는지 한눈에) -->
+    <div class="modal" id="dataModal" hidden>
+      <div class="modal-box">
+        <header class="modal-head">
+          <h2>데이터 현황</h2>
+          <div class="modal-actions">
+            <button class="btn small ghost" id="dataLogBtn">업로드 이력</button>
+            <button class="btn small ghost" id="dataResetBtn">전체 초기화</button>
+            <button class="icon-btn" id="dataClose">×</button>
+          </div>
+        </header>
+        <div class="data-panel" id="dataBody"></div>
       </div>
     </div>
 

@@ -314,7 +314,7 @@
 
     const events = Store.uploadsOf('events').slice().sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
     if (events.length) {
-      // 구간은 행으로 풀되 실적은 첫 행에만 둔다. 다시 올려도 합산이 두 번 더해지지 않는다.
+      // 끊어서 진행한 캠페인은 구간마다 한 행으로 푼다 (성과·모수는 raw에서 자동 집계하므로 싣지 않는다)
       const rows = events.flatMap((e) =>
         (e.periods && e.periods.length ? e.periods : [{ startDate: e.startDate, endDate: e.endDate }]).map((p, i) => [
           e.name,
@@ -325,15 +325,11 @@
           (e.couponPolicyIds || []).join(','),
           p.startDate,
           p.endDate,
-          i === 0 ? e.pool : '',
         ])
       );
       files.push([
         `btv_04_캠페인정보_${stamp}.csv`,
-        csvOf(
-          ['이벤트명', '구분', '이벤트 종류', '할인율', '쿠폰 정책명', '쿠폰 정책번호', '시작일', '종료일', '모수'],
-          rows
-        ),
+        csvOf(['이벤트명', '구분', '이벤트 종류', '할인율', '쿠폰 정책명', '쿠폰 정책번호', '시작일', '종료일'], rows),
       ]);
     }
 
@@ -376,6 +372,92 @@
     }
     files.forEach(([name, content], i) => setTimeout(() => download(name, content), i * 250));
     note(`✔ ${files.length}개 파일을 내려받습니다 — ${files.map(([n]) => n).join(', ')}`);
+  }
+
+  /* ---------- 업로드 체크리스트 ---------- */
+  // 올려야 하는 파일이 여러 개라 무엇을 올렸고 무엇이 비었는지 한 화면에서 본다
+  const FILE_SPECS = [
+    { kind: 'daily', no: '①', required: true, desc: '일자 × 유료 가입자 수 — 모든 화면의 기준이 되는 raw' },
+    { kind: 'couponDaily', no: '②', required: true, desc: '일자 × 쿠폰 정책번호 × 가입자 수 — 캠페인 쿠폰 실적 자동 집계' },
+    { kind: 'couponAlloc', no: '③', required: true, desc: '쿠폰 정책번호 × 할당 수 — 캠페인 모수 자동 집계' },
+    { kind: 'events', no: '④', required: true, desc: '캠페인 속성만 (성과·모수는 ①②③에서 자동으로 채워짐)' },
+    { kind: 'prizes', no: '⑤', required: false, desc: '경품이 걸린 캠페인만 — 등급별 단가·수량·응모자' },
+    { kind: 'seg', no: '⑥', required: false, desc: '월 × UI × SEG 할당·사용 — Seg.별 실적 화면용' },
+  ];
+
+  let pendingKind = null;
+
+  function lastUploadOf(kind) {
+    return Store.uploadLog.find((l) => l.kind === kind) || null;
+  }
+
+  function updateDataBadge() {
+    const req = FILE_SPECS.filter((f) => f.required);
+    const done = req.filter((f) => Store.uploadsOf(f.kind).length).length;
+    const badge = el('dataBadge');
+    badge.textContent = `${done}/${req.length}`;
+    badge.className = `badge ${done === req.length ? 'ok' : done ? 'part' : 'none'}`;
+  }
+
+  function renderDataPanel() {
+    const rows = FILE_SPECS.map((f) => {
+      const n = Store.uploadsOf(f.kind).length;
+      const last = lastUploadOf(f.kind);
+      const state = n ? 'done' : f.required ? 'todo' : 'skip';
+      const mark = n ? '✔' : f.required ? '○' : '–';
+      return `<tr class="${state}">
+        <td class="mark">${mark}</td>
+        <td class="left">
+          <b>${f.no} ${KIND_LABEL[f.kind]}</b>${f.required ? '' : ' <span class="hint">선택</span>'}
+          <div class="hint">${f.desc}</div>
+        </td>
+        <td class="left status">${
+          n
+            ? `<b>${n.toLocaleString()}행</b><div class="hint">${last ? `${last.file || '직접 입력'} · ${new Date(last.at).toLocaleString('ko-KR')}` : ''}</div>`
+            : `<span class="${f.required ? 'warn' : 'hint'}">${f.required ? '아직 안 올림' : '없어도 동작'}</span>`
+        }</td>
+        <td class="acts">
+          <div class="acts-wrap">
+            <button type="button" class="btn small" data-act="upload" data-kind="${f.kind}">${n ? '추가 업로드' : '올리기'}</button>
+            <button type="button" class="btn small ghost" data-act="sample" data-kind="${f.kind}">양식</button>
+            ${n ? `<button type="button" class="btn small ghost" data-act="drop" data-kind="${f.kind}">비우기</button>` : ''}
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+
+    el('dataBody').innerHTML = `
+      <p class="hint panel-lead">같은 파일을 다시 올리면 같은 키(일자·정책번호·이벤트명)는 최신값으로 덮어쓰고 새 행만 늘어납니다. 2년치를 매주 다시 올릴 필요가 없습니다.</p>
+      <table class="data-check"><tbody>${rows}</tbody></table>
+      <p class="hint">${Store.isRealData ? `누적 — ${uploadSummary() || '없음'}` : '아직 올린 데이터가 없어 더미 데이터로 보고 있습니다.'}</p>`;
+    updateDataBadge();
+  }
+
+  function openDataPanel() {
+    renderDataPanel();
+    el('dataModal').hidden = false;
+  }
+
+  function showUploadLog() {
+    const log = Store.uploadLog;
+    note(
+      `<b>업로드 이력</b> (누적: ${uploadSummary() || '없음'})<br>` +
+        (log.length
+          ? log
+              .map(
+                (l) =>
+                  `· ${new Date(l.at).toLocaleString('ko-KR')} — ${KIND_LABEL[l.kind]} ${l.file || ''} 신규 ${l.added} / 갱신 ${l.updated} (누적 ${l.total})`
+              )
+              .join('<br>')
+          : '· 기록 없음')
+    );
+    el('dataModal').hidden = true;
+  }
+
+  function clearAllUploads() {
+    if (!window.confirm('업로드한 데이터를 모두 지우고 더미 데이터로 되돌립니다. 계속할까요?')) return;
+    Store.clearUploads();
+    location.reload();
   }
 
   function note(html) {
@@ -451,6 +533,7 @@
     applyStored();
     syncMonthOptions();
     renderAll();
+    renderDataPanel();
     return result;
   }
 
@@ -481,7 +564,13 @@
         const touched = new Set(built.map((r) => r.event));
         Store.removeUploadRow('prizes', (r) => touched.has(r.event));
       }
+      const picked = pendingKind;
+      pendingKind = null;
       const result = applyUpload(kind, built, file.name);
+      if (picked && picked !== kind) {
+        note(`⚠ ${KIND_LABEL[picked]} 칸에 올렸지만 컬럼을 보니 <b>${KIND_LABEL[kind]}</b> 형식이라 그쪽으로 반영했습니다.`);
+        return;
+      }
       note(
         `✔ ${file.name} — ${KIND_LABEL[kind]} 신규 ${result.added}행 · 갱신 ${result.updated}행 (누적 ${result.total}행) · ` +
           `<a href="#" id="showUploadLog">업로드 이력</a> · <a href="#" id="clearUpload">전체 초기화</a>`
@@ -520,9 +609,9 @@
     '2026-09-02,CP1001,쿠폰 A형,131',
   ].join('\n');
   const EVENT_SAMPLE = [
-    '이벤트명,구분,이벤트 종류,할인율,쿠폰 정책명,쿠폰 정책번호,시작일,종료일,모수',
-    '9월 추석 연휴 특가,유료 신규,할인+추첨경품,30,쿠폰 A형,CP1001,2026-09-05,2026-09-14,120000',
-    '9월 가을맞이 프로모션,유료+무료,할인+전원경품,20,쿠폰 B형,"CP1002,CP1003",2026-09-18,2026-09-24,95000',
+    '이벤트명,구분,이벤트 종류,할인율,쿠폰 정책명,쿠폰 정책번호,시작일,종료일',
+    '9월 추석 연휴 특가,유료 신규,할인+추첨경품,30,쿠폰 A형,CP1001,2026-09-05,2026-09-14',
+    '9월 가을맞이 프로모션,유료+무료,할인+전원경품,20,쿠폰 B형,"CP1002,CP1003",2026-09-18,2026-09-24',
   ].join('\n');
 
   const ALLOC_SAMPLE = [
@@ -554,6 +643,7 @@
     const usingReal = applyStored();
 
     el('asOf').textContent = BTV.LAST_DATA_DAY;
+    updateDataBadge();
     Perf.init();
     Compare.init();
     EventForm.init();
@@ -582,13 +672,30 @@
     });
 
     el('exportBtn').addEventListener('click', exportAll);
-    el('sampleBtn').addEventListener('click', () => {
-      note(
-        '시스템에서 뽑은 raw를 그대로 올리면 됩니다. 캠페인의 유료·쿠폰 가입자는 ①②에서, 모수는 ③에서 정책번호로 자동 집계합니다.<br>' +
-          '<a href="#" data-sample="daily">① 일별 유료 가입자</a> · <a href="#" data-sample="couponDaily">② 일별 쿠폰 가입자</a> · ' +
-          '<a href="#" data-sample="couponAlloc">③ 쿠폰 할당 내역</a> · <a href="#" data-sample="events">④ 캠페인 정보</a> · ' +
-          '<a href="#" data-sample="prizes">⑤ 경품</a> · <a href="#" data-sample="seg">⑥ Seg.별 실적</a>'
-      );
+    el('dataBtn').addEventListener('click', openDataPanel);
+    el('dataClose').addEventListener('click', () => (el('dataModal').hidden = true));
+    el('dataModal').addEventListener('click', (e) => {
+      if (e.target.id === 'dataModal') el('dataModal').hidden = true;
+    });
+    el('dataLogBtn').addEventListener('click', showUploadLog);
+    el('dataResetBtn').addEventListener('click', clearAllUploads);
+    el('dataBody').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const { act, kind } = btn.dataset;
+      if (act === 'sample') download(SAMPLES[kind].file, SAMPLES[kind].content);
+      if (act === 'upload') {
+        pendingKind = kind;
+        el('csvInput').click();
+      }
+      if (act === 'drop') {
+        if (!window.confirm(`${KIND_LABEL[kind]} 데이터를 지웁니다. 계속할까요?`)) return;
+        Store.removeUploadRow(kind, () => true);
+        applyStored();
+        syncMonthOptions();
+        renderAll();
+        renderDataPanel();
+      }
     });
 
     el('uploadNote').addEventListener('click', (e) => {

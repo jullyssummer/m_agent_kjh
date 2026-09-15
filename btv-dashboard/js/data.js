@@ -274,15 +274,15 @@
         const gotPaid = paidGain * share;
         const gotCoupon = couponGain * share;
         const bucket = attribution[ev.id];
-        bucket.total += gotPaid + gotCoupon;
+        bucket.total += gotPaid;
         bucket.paid += gotPaid;
         bucket.coupon += gotCoupon;
         if (row.rest) {
-          bucket.rest += gotPaid + gotCoupon;
+          bucket.rest += gotPaid;
           bucket.paidRest += gotPaid;
           bucket.couponRest += gotCoupon;
         } else {
-          bucket.weekday += gotPaid + gotCoupon;
+          bucket.weekday += gotPaid;
           bucket.paidWeekday += gotPaid;
           bucket.couponWeekday += gotCoupon;
         }
@@ -291,8 +291,8 @@
           rest: row.rest,
           paid: gotPaid,
           coupon: gotCoupon,
-          total: gotPaid + gotCoupon,
-          baseline: row.basePaid + row.baseCoupon,
+          total: gotPaid,
+          baseline: row.basePaid,
         });
       });
     }
@@ -394,7 +394,7 @@
   const segMonthly = [];
   months.forEach((m) => {
     const rows = days.filter((d) => d.month === m);
-    const totalSignups = rows.reduce((s, d) => s + d.paid + d.coupon, 0);
+    const totalSignups = rows.reduce((s, d) => s + d.paid, 0);
     UI_GROUPS.forEach((ui) => {
       SEG_LIST.forEach((seg, i) => {
         segMonthly.push({
@@ -411,7 +411,7 @@
   // 사용 합계가 월 총 가입자와 일치하도록 보정
   months.forEach((m) => {
     const rows = days.filter((d) => d.month === m);
-    const total = rows.reduce((s, d) => s + d.paid + d.coupon, 0);
+    const total = rows.reduce((s, d) => s + d.paid, 0);
     const segRows = segMonthly.filter((s) => s.month === m);
     const sum = segRows.reduce((s, r) => s + r.used, 0);
     segRows.forEach((r) => {
@@ -481,15 +481,16 @@
 
       // 매칭되는 raw가 하나도 없으면 값을 채우지 않는다 (0으로 덮어써 착시를 만들지 않도록)
       if (!paidRows.length && !couponRows.length) return;
+      // 쿠폰 가입자는 유료 가입자에 포함되므로 합계는 유료 기준이다
       ev.paidSignups = paid;
       ev.couponSignups = coupon;
-      ev.signups = paid + coupon;
+      ev.signups = paid;
       ev.paidRest = paidRest;
       ev.paidWeekday = paid - paidRest;
       ev.couponRest = couponRest;
       ev.couponWeekday = coupon - couponRest;
-      ev.restSignups = paidRest + couponRest;
-      ev.weekdaySignups = ev.signups - ev.restSignups;
+      ev.restSignups = paidRest;
+      ev.weekdaySignups = paid - paidRest;
       ev.couponMatched = couponRows.length;
     });
   }
@@ -541,7 +542,7 @@
     if (!prior.length) return null;
     const organic = prior.filter((d) => !d.eventIds || !d.eventIds.length);
     const source = organic.length >= 3 ? organic : prior;
-    const avg = (list) => (list.length ? list.reduce((s, d) => s + d.paid + d.coupon, 0) / list.length : null);
+    const avg = (list) => (list.length ? list.reduce((s, d) => s + d.paid, 0) / list.length : null);
     const restAvg = avg(source.filter((d) => d.rest));
     const weekdayAvg = avg(source.filter((d) => !d.rest));
     const overall = avg(source);
@@ -640,7 +641,7 @@
       couponDailyAvg: has && elapsedDays ? ev.couponSignups / elapsedDays : null,
       couponRestAvg: has && elapsedRestDays ? ev.couponRest / elapsedRestDays : null,
       couponWeekdayAvg: has && elapsedWeekdayDays ? ev.couponWeekday / elapsedWeekdayDays : null,
-      organicRatio: has && ev.paidSignups ? ev.couponSignups / ev.paidSignups : null,
+      couponShare: has && ev.paidSignups ? ev.couponSignups / ev.paidSignups : null,
       prizes: prizeRows,
       autoRollup: !!ev.autoRollup,
       couponPolicyIds: ev.couponPolicyIds || [],
@@ -692,7 +693,7 @@
       .filter((d) => covers(ev, d.date))
       .map((d) => {
         const baseline = base ? (d.rest ? base.rest : base.weekday) : 0;
-        const total = d.paid + d.coupon;
+        const total = d.paid;
         return {
           date: d.date,
           rest: d.rest,
@@ -724,9 +725,9 @@
 
     const tail = state.days.filter((d) => d.date > ev.endDate && d.date <= addDays(ev.endDate, tailDays));
     const tailBase = approx ? base : null;
-    const tailActual = tail.reduce((s, d) => s + d.paid + d.coupon, 0);
+    const tailActual = tail.reduce((s, d) => s + d.paid, 0);
     const tailBaseline = tail.reduce(
-      (s, d) => s + (tailBase ? (d.rest ? tailBase.rest : tailBase.weekday) : d.basePaid + d.baseCoupon),
+      (s, d) => s + (tailBase ? (d.rest ? tailBase.rest : tailBase.weekday) : d.basePaid),
       0
     );
     const otherEventDays = tail.filter((d) => d.eventIds && d.eventIds.length).length;
@@ -852,15 +853,20 @@
       rows,
       paid,
       coupon,
-      total: paid + coupon,
+      // 쿠폰 가입자는 유료 가입자의 부분집합이므로 진척·갭·일평균은 모두 유료 기준으로 본다
+      total: paid,
+      couponShare: paid ? coupon / paid : 0,
       target,
-      targetTotal: target.paid + target.coupon,
-      progress: target.paid + target.coupon ? (paid + coupon) / (target.paid + target.coupon) : 0,
-      gap: target.paid + target.coupon - (paid + coupon),
+      targetTotal: target.paid,
+      progress: target.paid ? paid / target.paid : 0,
+      gap: target.paid - paid,
+      couponProgress: target.coupon ? coupon / target.coupon : 0,
+      couponGap: target.coupon - coupon,
       elapsed,
       totalDaysInMonth,
       elapsedRatio: elapsed / totalDaysInMonth,
-      dailyAvg: rows.length ? (paid + coupon) / rows.length : 0,
+      dailyAvg: rows.length ? paid / rows.length : 0,
+      couponDailyAvg: rows.length ? coupon / rows.length : 0,
     };
   }
 
@@ -903,7 +909,7 @@
     const recent = series.slice(-7);
     const prev = series.slice(-28, -7);
     if (!prev.length) return null;
-    const avg = (list) => list.reduce((s, d) => s + d.paid + d.coupon, 0) / list.length;
+    const avg = (list) => list.reduce((s, d) => s + d.paid, 0) / list.length;
     const recentAvg = avg(recent);
     const prevAvg = avg(prev);
     const dev = (recentAvg - prevAvg) / prevAvg;
