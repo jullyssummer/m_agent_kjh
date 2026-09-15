@@ -5,6 +5,8 @@
 
   const el = (id) => document.getElementById(id);
   let editingId = null;
+  let editingPool = 0;
+  let editingAutoPool = true;
 
   const options = (list, selected) =>
     list.map((v) => `<option value="${v}"${v === selected ? ' selected' : ''}>${v}</option>`).join('');
@@ -54,11 +56,12 @@
     el('ef-purpose').innerHTML = options(BTV.PURPOSES, ev ? ev.purpose : null);
     el('ef-type').innerHTML = options(BTV.TYPES, ev ? ev.type : null);
 
+    editingPool = ev && !ev.autoPool ? ev.pool : 0;
+    editingAutoPool = !ev || !!ev.autoPool;
     el('ef-name').value = ev ? ev.name : '';
     el('ef-discount').value = ev ? ev.discountRate : 0;
     el('ef-policy').value = ev && ev.couponPolicy !== '-' ? ev.couponPolicy : '';
     el('ef-policyIds').value = ev && ev.couponPolicyIds ? ev.couponPolicyIds.join(', ') : '';
-    el('ef-pool').value = ev ? ev.pool : '';
     el('ef-paid').value = ev && ev.paidSignups != null ? ev.paidSignups : '';
     el('ef-coupon').value = ev && ev.couponSignups != null ? ev.couponSignups : '';
     el('ef-entrants').value = ev && ev.entrants != null ? ev.entrants : '';
@@ -145,8 +148,9 @@
       startDate: periods.length ? periods[0].startDate : '',
       endDate: periods.length ? periods[periods.length - 1].endDate : '',
       periods,
-      pool: Number(el('ef-pool').value) || 0,
-      autoPool: el('ef-pool').value === '',
+      // 모수는 쿠폰 할당 내역에서 잡는다. CSV로 값을 직접 받은 이벤트만 그 값을 지킨다.
+      pool: editingPool,
+      autoPool: editingAutoPool,
       paidSignups: paid,
       couponSignups: coupon,
       signups,
@@ -167,7 +171,6 @@
     if (!row.name) return fail('이벤트명을 입력해주세요.');
     if (!row.periods.length) return fail('기간을 최소 한 구간 입력해주세요.');
     if (row.periods.some((p) => p.startDate > p.endDate)) return fail('종료일이 시작일보다 빠른 구간이 있습니다.');
-    if (!row.pool && !row.autoPool) return fail('모수를 입력해주세요.');
 
     row.status = row.endDate <= BTV.LAST_DATA_DAY ? '종료' : row.startDate <= BTV.LAST_DATA_DAY ? '진행중' : '예정';
     App.saveManualEvent(row);
