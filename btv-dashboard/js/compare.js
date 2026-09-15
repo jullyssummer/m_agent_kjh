@@ -150,7 +150,7 @@
   const ALL_COLUMNS = [
     { g: 0, label: '이벤트 종류', left: true, get: (e) => e.type, raw: (e) => e.type },
     { g: 0, label: '할인율', get: (e) => `${e.discountRate}%`, raw: (e) => e.discountRate },
-    { g: 0, label: '쿠폰 정책명', left: true, get: (e) => e.couponPolicy || '-', raw: (e) => e.couponPolicy },
+    { g: 0, label: '쿠폰 정책', left: true, get: (e) => e.couponPolicyLabel || '-', raw: (e) => (e.couponPolicyIds || []).join(',') },
     { g: 0, label: '경품 방식', left: true, get: (e) => e.prizeMethod || '-', raw: (e) => e.prizeMethod },
     { g: 0, label: '경품 유형', left: true, get: (e) => e.prizeForm || '-', raw: (e) => e.prizeForm },
     { g: 0, label: '경품 종류', left: true, get: (e) => e.prizeKind, raw: (e) => e.prizeKind },
@@ -1128,7 +1128,7 @@
       <p class="onepager-sub">${base.startDate} ~ ${base.endDate} (${base.totalDays}일 · 휴일 ${base.restDays}일) · ${base.type}</p>
       <table class="onepager-table">
         ${row('오퍼', `할인 ${base.discountRate}%${base.prizeKind !== '없음' ? ` + ${base.prizeKind} ${base.priceBand} (${base.prizeMethod})` : ''}`)}
-        ${row('쿠폰 정책', base.couponPolicy || '-')}
+        ${row('쿠폰 정책', base.couponPolicyLabel || '-')}
         ${row('모수 / 유료 신규', `${fmt.num(base.pool)} → <b>${fmt.num(base.signups)}건</b> (가입률 ${fmt.pct(base.rate)})`)}
         ${row('그중 쿠폰 가입', `${fmt.num(base.couponSignups)}건 (유료 대비 ${fmt.pct(base.couponShare, 1)}, 나머지는 오가닉)`)}
         ${row('일평균 유료', `전체 ${fmt.num(base.dailyAvg)} · 휴일 ${fmt.num(base.restAvg)} · 평일 ${fmt.num(base.weekdayAvg)}`)}

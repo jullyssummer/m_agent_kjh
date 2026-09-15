@@ -141,7 +141,7 @@
     return rows
       .map((r) => ({
         date: toDate(val(r, ALLOC_ALIAS.date)) || '',
-        policyId: String(val(r, ALLOC_ALIAS.policyId)).trim(),
+        policyId: BTV.normPolicy(val(r, ALLOC_ALIAS.policyId)),
         policyName: val(r, ALLOC_ALIAS.policyName) || '',
         count: toNum(val(r, ALLOC_ALIAS.count)) || 0,
       }))
@@ -152,7 +152,7 @@
     return rows
       .map((r) => ({
         date: toDate(val(r, COUPON_ALIAS.date)),
-        policyId: String(val(r, COUPON_ALIAS.policyId)).trim(),
+        policyId: BTV.normPolicy(val(r, COUPON_ALIAS.policyId)),
         policyName: val(r, COUPON_ALIAS.policyName) || '',
         count: toNum(val(r, COUPON_ALIAS.count)) || 0,
       }))
@@ -252,6 +252,7 @@
           purpose: val(r, EVENT_ALIAS.purpose) || '-',
           couponPolicy: val(r, EVENT_ALIAS.couponPolicy) || '-',
           // 성과는 raw에서 채운다. 정책번호는 쉼표로 여러 개 적을 수 있다.
+          // 정책명은 겹칠 수 있어 매핑 키로 쓰지 않는다 — 번호만 정규화해 보관
           couponPolicyIds: String(val(r, EVENT_ALIAS.couponPolicyIds) || '')
             .split(/[,;|]/)
             .map((v) => v.trim())
@@ -429,8 +430,38 @@
     el('dataBody').innerHTML = `
       <p class="hint panel-lead">같은 파일을 다시 올리면 같은 키(일자·정책번호·이벤트명)는 최신값으로 덮어쓰고 새 행만 늘어납니다. 2년치를 매주 다시 올릴 필요가 없습니다.</p>
       <table class="data-check"><tbody>${rows}</tbody></table>
+      ${policyCheck()}
       <p class="hint">${Store.isRealData ? `누적 — ${uploadSummary() || '없음'}` : '아직 올린 데이터가 없어 더미 데이터로 보고 있습니다.'}</p>`;
     updateDataBadge();
+  }
+
+  // 캠페인과 쿠폰 raw는 정책명이 아니라 정책번호로 붙는다 — 안 붙은 번호를 짚어준다
+  function policyCheck() {
+    if (!Store.isRealData) return '';
+    const catalog = BTV.policyCatalog();
+    const events = BTV.allEvents();
+    const unknown = events.filter((e) => (e.policyUnknown || []).length);
+    const missing = events.filter((e) => !(e.couponPolicyIds || []).length);
+    const lines = [];
+    lines.push(
+      `쿠폰 정책번호 <b>${catalog.size}개</b> 인식 — 캠페인은 정책명이 아니라 이 번호로 매핑됩니다${
+        catalog.size ? ` (${[...catalog.values()].slice(0, 4).map((p) => `${p.policyId}${p.name !== '-' ? ` ${p.name}` : ''}`).join(', ')}${catalog.size > 4 ? ' 외' : ''})` : ''
+      }`
+    );
+    if (unknown.length) {
+      lines.push(
+        `<span class="warn">⚠ ②③ 파일에 없는 정책번호</span> — ${unknown
+          .slice(0, 5)
+          .map((e) => `${e.name}(${e.policyUnknown.join(', ')})`)
+          .join(', ')}${unknown.length > 5 ? ` 외 ${unknown.length - 5}건` : ''} · 쿠폰 가입자·모수가 비어 보입니다`
+      );
+    }
+    if (missing.length) {
+      lines.push(
+        `<span class="warn">⚠ 정책번호가 비어 있는 캠페인 ${missing.length}건</span> — ${missing.slice(0, 5).map((e) => e.name).join(', ')}${missing.length > 5 ? ' 외' : ''}`
+      );
+    }
+    return `<div class="policy-check">${lines.map((l) => `<p>${l}</p>`).join('')}</div>`;
   }
 
   function openDataPanel() {

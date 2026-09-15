@@ -437,6 +437,36 @@
   /* ---------- 조회 · 파생 지표 ---------- */
   const state = { days, events, segMonthly, couponDaily: [], couponAlloc: [] };
 
+  // 정책명은 서로 겹칠 수 있으므로 매핑 키는 언제나 쿠폰 정책번호다.
+  // 공백·대소문자 차이로 안 붙는 일이 없게 양쪽을 같은 규칙으로 정규화한다.
+  const normPolicy = (v) => String(v == null ? '' : v).trim().toUpperCase();
+
+  // 정책번호 → { 정책명, 할당 수 } — 이름은 표시용으로만 쓴다
+  function policyCatalog() {
+    const map = new Map();
+    const touch = (id) => {
+      const key = normPolicy(id);
+      if (!key) return null;
+      if (!map.has(key)) map.set(key, { policyId: key, names: new Set(), allocated: 0, signups: 0 });
+      return map.get(key);
+    };
+    state.couponAlloc.forEach((r) => {
+      const row = touch(r.policyId);
+      if (!row) return;
+      if (r.policyName) row.names.add(r.policyName);
+      row.allocated += r.count || 0;
+    });
+    state.couponDaily.forEach((r) => {
+      const row = touch(r.policyId);
+      if (!row) return;
+      if (r.policyName) row.names.add(r.policyName);
+      row.signups += r.count || 0;
+    });
+    return new Map(
+      [...map.values()].map((r) => [r.policyId, { ...r, name: [...r.names].join(' / ') || '-' }])
+    );
+  }
+
   // raw(일별 쿠폰 가입자)를 쿠폰 정책번호로 캠페인에 이어 붙이고, 유료는 기간으로 집계한다.
   // 사용자가 엑셀에서 미리 합계를 낼 필요가 없게 하려는 것.
   function rollupPerformance() {
@@ -453,9 +483,13 @@
       });
     }
 
+    const catalog = policyCatalog();
     state.events.forEach((ev) => {
+      // 정책번호는 자동 집계 여부와 상관없이 정규화해 둔다 (표시·경고에 함께 쓴다)
+      ev.couponPolicyIds = (ev.couponPolicyIds || []).map(normPolicy).filter(Boolean);
+      ev.policyUnknown = ev.couponPolicyIds.filter((id) => !catalog.has(id));
       if (!ev.autoRollup) return;
-      const policies = ev.couponPolicyIds || [];
+      const policies = ev.couponPolicyIds;
       const inRange = (date) => covers(ev, date);
 
       const paidRows = state.days.filter((d) => inRange(d.date));
@@ -496,6 +530,7 @@
   }
 
   function replaceCouponAlloc(rows) {
+    rows.forEach((r) => (r.policyId = normPolicy(r.policyId)));
     const key = (r) => `${r.date || ''}|${r.policyId}`;
     const byKey = new Map(state.couponAlloc.map((r) => [key(r), r]));
     rows.forEach((r) => byKey.set(key(r), r));
@@ -503,6 +538,7 @@
   }
 
   function replaceCouponDaily(rows) {
+    rows.forEach((r) => (r.policyId = normPolicy(r.policyId)));
     const key = (r) => `${r.date}|${r.policyId}`;
     const byKey = new Map(state.couponDaily.map((r) => [key(r), r]));
     rows.forEach((r) => byKey.set(key(r), r));
@@ -645,6 +681,8 @@
       prizes: prizeRows,
       autoRollup: !!ev.autoRollup,
       couponPolicyIds: ev.couponPolicyIds || [],
+      couponPolicyLabel: policyLabel(ev),
+      policyUnknown: ev.policyUnknown || [],
       couponMatched: ev.couponMatched || 0,
       poolMatched: ev.poolMatched || 0,
       autoPool: !!ev.autoPool,
@@ -958,12 +996,27 @@
   }
 
   function replaceEvents(rows) {
+    rows.forEach((r) => (r.couponPolicyIds = (r.couponPolicyIds || []).map(normPolicy).filter(Boolean)));
     const byId = new Map(state.events.map((e) => [e.id, e]));
     rows.forEach((r) => {
       byId.set(r.id, { ...(byId.get(r.id) || {}), ...r });
     });
     state.events = Array.from(byId.values()).sort((a, b) => (a.startDate < b.startDate ? -1 : 1));
     recomputeEventDays();
+  }
+
+  // 화면에는 '번호 (이름)'으로 적어 같은 이름의 정책이 섞여 보이지 않게 한다
+  function policyLabel(ev) {
+    const ids = ev.couponPolicyIds || [];
+    if (!ids.length) return ev.couponPolicy && ev.couponPolicy !== '-' ? `${ev.couponPolicy} <span class="hint">번호 없음</span>` : '-';
+    const catalog = policyCatalog();
+    return ids
+      .map((id) => {
+        const hit = catalog.get(id);
+        const name = hit ? hit.name : ev.couponPolicy && ev.couponPolicy !== '-' ? ev.couponPolicy : '';
+        return `${id}${name && name !== '-' ? ` <span class="hint">${name}</span>` : ''}`;
+      })
+      .join(', ');
   }
 
   function replaceSegments(rows) {
@@ -1034,6 +1087,8 @@
     recomputeEventDays,
     replaceDays,
     replaceEvents,
+    policyCatalog,
+    normPolicy,
     util: {
       toDate,
       toKey,

@@ -365,6 +365,14 @@ table.data-check td.acts { width: 150px; }
 table.data-check .acts-wrap { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
 table.data-check .hint { display: block; margin-top: 2px; }
 
+.policy-check {
+  margin: 12px 0 10px; padding: 10px 12px; border-radius: 8px;
+  background: #f6f8fc; border: 1px solid var(--line); font-size: 12px; color: var(--muted);
+}
+.policy-check p { margin: 0 0 4px; }
+.policy-check p:last-child { margin-bottom: 0; }
+.policy-check .warn { color: #c4491f; font-weight: 700; }
+
 /* 직접 입력 폼 */
 .event-form { padding: 18px 22px 26px; }
 .form-section {
