@@ -19,8 +19,8 @@
       <button class="tab" data-view="sim">시뮬레이터</button>
     </nav>
     <div class="actions">
-      <label class="btn" for="csvInput">CSV 업로드</label>
-      <input type="file" id="csvInput" accept=".csv,text/csv" hidden>
+      <label class="btn" for="csvInput">파일 업로드</label>
+      <input type="file" id="csvInput" accept=".csv,.xlsx,.xls,text/csv" hidden>
       <button class="btn ghost" id="dataBtn">데이터 현황 <span class="badge" id="dataBadge">0/4</span></button>
       <button class="btn ghost" id="exportBtn">데이터 내보내기</button>
     </div>
@@ -371,6 +371,7 @@
   </main>
 
   <script src="vendor/chart.umd.min.js"></script>
+  <script src="vendor/xlsx.full.min.js"></script>
   <script src="js/data.js"></script>
   <script src="js/store.js"></script>
   <script src="js/charts.js"></script>

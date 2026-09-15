@@ -33,6 +33,38 @@
     });
   }
 
+  /* 엑셀(.xlsx/.xls)도 같은 모양으로 읽는다 — 첫 시트가 비어 있으면 다음 시트를 본다.
+     헤더는 CSV와 똑같이 소문자로 맞춰 별칭 매칭이 그대로 동작하게 한다. */
+  function parseExcel(buffer) {
+    const book = XLSX.read(buffer, { type: 'array', cellDates: true });
+    // 엑셀 날짜 칸은 Date로 오므로 yyyy-mm-dd 문자열로 맞춘다 (표시 형식이 무엇이든 동일하게)
+    const cell = (v) => {
+      if (v == null) return '';
+      if (v instanceof Date) {
+        const p2 = (x) => String(x).padStart(2, '0');
+        return `${v.getFullYear()}-${p2(v.getMonth() + 1)}-${p2(v.getDate())}`;
+      }
+      return String(v).trim();
+    };
+    for (const name of book.SheetNames) {
+      const grid = XLSX.utils.sheet_to_json(book.Sheets[name], { header: 1, blankrows: false, raw: true });
+      const rows = grid.filter((r) => r.some((c) => cell(c)));
+      if (rows.length < 2) continue;
+      const head = rows[0].map((h) => cell(h).toLowerCase());
+      const body = rows.slice(1).map((cells) => {
+        const row = {};
+        head.forEach((h, i) => {
+          row[h] = cell(cells[i]);
+        });
+        return row;
+      });
+      if (body.length) return body;
+    }
+    return [];
+  }
+
+  const isExcel = (name) => /\.xlsx?$/i.test(name);
+
   const DAILY_ALIAS = {
     date: ['date', '일자', '날짜'],
     paid: ['paid', '유료 가입자 수', '유료가입자수', '유료신규', '유료 신규', '유료'],
@@ -428,7 +460,7 @@
     }).join('');
 
     el('dataBody').innerHTML = `
-      <p class="hint panel-lead">같은 파일을 다시 올리면 같은 키(일자·정책번호·이벤트명)는 최신값으로 덮어쓰고 새 행만 늘어납니다. 2년치를 매주 다시 올릴 필요가 없습니다.</p>
+      <p class="hint panel-lead">CSV·엑셀(.xlsx/.xls) 모두 올릴 수 있습니다. 같은 파일을 다시 올리면 같은 키(일자·정책번호·이벤트명)는 최신값으로 덮어쓰고 새 행만 늘어납니다. 2년치를 매주 다시 올릴 필요가 없습니다.</p>
       <table class="data-check"><tbody>${rows}</tbody></table>
       ${policyCheck()}
       <p class="hint">${Store.isRealData ? `누적 — ${uploadSummary() || '없음'}` : '아직 올린 데이터가 없어 더미 데이터로 보고 있습니다.'}</p>`;
@@ -572,13 +604,27 @@
     const reader = new FileReader();
     reader.onload = () => {
       const buffer = reader.result;
-      let text = new TextDecoder('utf-8').decode(buffer);
-      // 엑셀에서 저장한 CP949 파일 대응
-      if (text.includes('�')) text = new TextDecoder('euc-kr').decode(buffer);
-      const rows = parseCsv(text);
+      let rows;
+      if (isExcel(file.name)) {
+        try {
+          rows = parseExcel(buffer);
+        } catch (err) {
+          note(`⚠ 엑셀 파일을 읽지 못했습니다 — ${err.message}`);
+          return;
+        }
+      } else {
+        let text = new TextDecoder('utf-8').decode(buffer);
+        // 엑셀에서 저장한 CP949 파일 대응
+        if (text.includes('�')) text = new TextDecoder('euc-kr').decode(buffer);
+        rows = parseCsv(text);
+      }
+      if (!rows.length) {
+        note('⚠ 읽을 수 있는 행이 없습니다. 첫 줄에 컬럼명이 있는지 확인해주세요.');
+        return;
+      }
       const kind = detectKind(rows);
       if (!kind) {
-        note('⚠ 인식할 수 없는 형식입니다. "샘플 양식"의 컬럼명을 확인해주세요.');
+        note('⚠ 인식할 수 없는 형식입니다. 양식의 컬럼명을 확인해주세요. (CSV·엑셀 모두 첫 줄이 컬럼명이어야 합니다)');
         return;
       }
       const builders = { daily: buildDaily, couponDaily: buildCouponDaily, couponAlloc: buildCouponAlloc, events: buildEvents, seg: buildSeg, prizes: buildPrizes };
