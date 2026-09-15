@@ -444,8 +444,8 @@
     const missing = events.filter((e) => !(e.couponPolicyIds || []).length);
     const lines = [];
     lines.push(
-      `쿠폰 정책번호 <b>${catalog.size}개</b> 인식 — 캠페인은 정책명이 아니라 이 번호로 매핑됩니다${
-        catalog.size ? ` (${[...catalog.values()].slice(0, 4).map((p) => `${p.policyId}${p.name !== '-' ? ` ${p.name}` : ''}`).join(', ')}${catalog.size > 4 ? ' 외' : ''})` : ''
+      `쿠폰 정책 <b>${catalog.size}개</b> 인식 — 화면에는 정책명으로 보이지만, 캠페인과 잇는 기준은 정책번호입니다${
+        catalog.size ? ` (${[...catalog.values()].slice(0, 4).map((p) => `${p.name !== '-' ? p.name : p.policyId}`).join(', ')}${catalog.size > 4 ? ' 외' : ''})` : ''
       }`
     );
     if (unknown.length) {

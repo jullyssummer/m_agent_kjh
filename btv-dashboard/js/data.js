@@ -1005,16 +1005,25 @@
     recomputeEventDays();
   }
 
-  // 화면에는 '번호 (이름)'으로 적어 같은 이름의 정책이 섞여 보이지 않게 한다
+  // 화면에는 쿠폰 정책명으로 적는다 (매핑은 번호로 하되 사람이 읽는 건 이름).
+  // 다만 서로 다른 번호가 같은 이름을 쓰면 구분이 안 되므로 그때만 번호를 덧붙인다.
   function policyLabel(ev) {
     const ids = ev.couponPolicyIds || [];
-    if (!ids.length) return ev.couponPolicy && ev.couponPolicy !== '-' ? `${ev.couponPolicy} <span class="hint">번호 없음</span>` : '-';
+    const own = ev.couponPolicy && ev.couponPolicy !== '-' ? ev.couponPolicy : '';
+    if (!ids.length) return own || '-';
     const catalog = policyCatalog();
+    const dupNames = new Set();
+    const seen = new Map();
+    catalog.forEach((p) => {
+      if (seen.has(p.name) && seen.get(p.name) !== p.policyId) dupNames.add(p.name);
+      seen.set(p.name, p.policyId);
+    });
     return ids
       .map((id) => {
         const hit = catalog.get(id);
-        const name = hit ? hit.name : ev.couponPolicy && ev.couponPolicy !== '-' ? ev.couponPolicy : '';
-        return `${id}${name && name !== '-' ? ` <span class="hint">${name}</span>` : ''}`;
+        const name = hit && hit.name !== '-' ? hit.name : own;
+        if (!name) return `${id} <span class="hint">이름 미확인</span>`;
+        return dupNames.has(name) ? `${name} <span class="hint">${id}</span>` : name;
       })
       .join(', ');
   }
